@@ -1,0 +1,10 @@
+Parivār Pass																	
+Tab: passes · headers row 10 · data from row 11																	
+passId + qrUrl + qrSvg (SVG markup) + qrSvgFile (Drive link)																	
+status: unregistered|active · slots: open|redeemed · dates: yyyy-MM-dd																	
+Event columns must match events!Event Code																	
+																	
+																	
+																	
+																	
+passId	qrUrl	qrSvg	qrSvgFile	status	name	phone	email	generatedAt	validUntil	notes	registeredAt	parsec_jayanagar	whitefield_40	event_01	event_02	event_03	event_04

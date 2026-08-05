@@ -12,13 +12,25 @@
  * 2. Set mode: "sheets" and webAppUrl to your Apps Script /exec URL
  * 3. Set publicBaseUrl to the public audience.html URL (used in printed QR codes)
  * 4. Update social.instagram
+ * 5. OTP: set otpEnabled true here; for Sheets also set Script property OTP_ENABLED=true
  */
 window.PARIVAR_CONFIG = {
   productName: "Parivar Pass v2",
-  mode: "demo",
-  webAppUrl: "",
+  mode: "sheets",
+  webAppUrl:
+    "https://script.google.com/macros/s/AKfycby-yYeytUiFSvpol728shV6g3J_BkqABXo1dIgrNR9qbbphxTofxKQx12c6aObJTYFT/exec",
   /** Only share admin.html with Param desk staff — change before live */
   adminPin: "param2468",
+  /**
+   * ONE SWITCH — phone OTP on first registration (audience build).
+   * false = register immediately (current).
+   * true = send OTP → verify → then register.
+   * Sheets: also set Script property OTP_ENABLED=true so the API enforces it.
+   * SMS provider is stubbed until you wire sendOtpSms_ in Code.gs.
+   */
+  otpEnabled: false,
+  /** sms | email — channel for OTP when enabled */
+  otpChannel: "sms",
   /**
    * Public audience URL for QR codes (required for live print).
    * Example: "https://YOUR_USER.github.io/app-a-day/kits/season-pass/audience.html"

@@ -22,9 +22,9 @@
       <p class="eyebrow">Pass holder</p>
       <h1>Your Parivar Pass</h1>
       <p class="lede">
-        Keep your QR private. First person to register owns this pass. Event RSVP
-        uses that privilege even if you don’t attend. Parsec / Whitefield: show
-        this pass at the ticket desk before purchase.
+        Keep your QR private. First scan registers you as bearer. Later scans let
+        you RSVP to an event from the list. Parsec / Whitefield: show this pass at
+        the ticket desk — staff redeem those.
       </p>
       <p id="status" class="status hidden" role="status"></p>
 
@@ -55,7 +55,32 @@
           <label>Phone <input id="reg-phone" required autocomplete="tel" /></label>
           <label>Email (optional) <input id="reg-email" type="email" /></label>
           <div class="btn-row">
-            <button type="submit">Complete registration</button>
+            <button type="submit" id="reg-submit">Complete registration</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel hidden" id="otp-panel">
+        <h2>Verify phone</h2>
+        <p class="hint">
+          Enter the code sent to <span id="otp-phone-label"></span>
+        </p>
+        <form id="otp-form">
+          <label>
+            One-time code
+            <input
+              id="otp-code"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              required
+              maxlength="8"
+              placeholder="6-digit code"
+            />
+          </label>
+          <div class="btn-row">
+            <button type="submit" id="otp-verify">Verify &amp; register</button>
+            <button type="button" class="secondary" id="otp-resend">Resend code</button>
+            <button type="button" class="secondary" id="otp-back">Back</button>
           </div>
         </form>
       </section>
@@ -74,7 +99,30 @@
           <span id="guest-valid"></span>
         </p>
         <p class="hint" id="social-line"></p>
-        <div id="benefit-list"></div>
+
+        <div id="venue-list"></div>
+
+        <div class="benefit" id="rsvp-block">
+          <p class="tag">Event · RSVP</p>
+          <h3>Choose an event</h3>
+          <p class="hint">
+            Events come from the Param events list. Confirming uses that
+            privilege even if you don’t attend.
+          </p>
+          <label for="event-select">Event</label>
+          <select id="event-select">
+            <option value="">Select an event…</option>
+          </select>
+          <p class="hint" id="event-meta"></p>
+          <div class="btn-row">
+            <button type="button" id="rsvp-btn" disabled>Confirm RSVP</button>
+          </div>
+          <p class="hint hidden" id="rsvp-empty">
+            No open event privileges left on this pass.
+          </p>
+        </div>
+
+        <div id="used-events" class="hidden"></div>
       </section>
     </main>
     <script src="config.js"></script>

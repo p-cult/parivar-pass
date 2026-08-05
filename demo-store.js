@@ -3,6 +3,9 @@
  */
 window.ParivarDemo = (function () {
   var KEY = "appgust:parivar-v2:demo";
+  /** In-memory OTP provision (mirrors Code.gs CacheService) */
+  var otpStore = {};
+  var otpTokens = {};
 
   function benefitIds() {
     return (window.PARIVAR_BENEFITS || []).map(function (b) {
@@ -187,6 +190,44 @@ window.ParivarDemo = (function () {
       return ok({ benefits: window.PARIVAR_BENEFITS });
     }
 
+    if (action === "requestOtp") {
+      var phoneR = String(payload.phone || "").trim();
+      var passR = findPass(data, payload.passId);
+      if (!phoneR) return fail("Phone required", "validation");
+      if (!passR) return fail("Pass not found", "not_found");
+      if (passR.status !== "unregistered") {
+        return fail("Already registered", "already_registered");
+      }
+      var code =
+        "" + (100000 + Math.floor(Math.random() * 900000));
+      var key = String(payload.passId).toUpperCase() + ":" + phoneR;
+      otpStore[key] = { code: code, at: Date.now() };
+      delete otpTokens[key];
+      return ok({
+        sent: false,
+        channel: payload.channel || "sms",
+        expiresInSec: 300,
+        devCode: code,
+      });
+    }
+
+    if (action === "verifyOtp") {
+      var phoneV = String(payload.phone || "").trim();
+      var keyV = String(payload.passId || "").toUpperCase() + ":" + phoneV;
+      var entry = otpStore[keyV];
+      if (!entry || String(payload.code || "").trim() !== entry.code) {
+        return fail("Invalid or expired code", "otp");
+      }
+      if (Date.now() - entry.at > 300000) {
+        delete otpStore[keyV];
+        return fail("Invalid or expired code", "otp");
+      }
+      var tok = "tok-" + Math.random().toString(36).slice(2);
+      otpTokens[keyV] = tok;
+      delete otpStore[keyV];
+      return ok({ otpToken: tok });
+    }
+
     if (action === "register") {
       var pass = findPass(data, payload.passId);
       if (!pass) return fail("Pass not found", "not_found");
@@ -197,6 +238,16 @@ window.ParivarDemo = (function () {
       }
       if (!payload.name || !payload.phone) {
         return fail("Name and phone required", "validation");
+      }
+      if (payload.requireOtp) {
+        var keyReg =
+          String(payload.passId).toUpperCase() +
+          ":" +
+          String(payload.phone).trim();
+        if (!payload.otpToken || otpTokens[keyReg] !== payload.otpToken) {
+          return fail("Phone verification required", "otp");
+        }
+        delete otpTokens[keyReg];
       }
       pass.name = String(payload.name).trim();
       pass.phone = String(payload.phone).trim();

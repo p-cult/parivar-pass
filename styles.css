@@ -250,6 +250,21 @@ ul.hint {
   color: var(--clay, #c45c26);
 }
 
+#rsvp-block select {
+  width: 100%;
+  max-width: 28rem;
+  margin-top: 0.35rem;
+}
+
+#used-events {
+  margin-top: 1.25rem;
+}
+
+#used-events > h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
 .proof {
   text-align: center;
   padding: 1.5rem 1rem;
