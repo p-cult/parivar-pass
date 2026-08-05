@@ -120,9 +120,6 @@
         "publicBaseUrl is blank — QR codes will use this browser’s URL. Set the live audience.html URL in config.js before printing for production."
       );
     }
-    if (c.adminPin === "param2468") {
-      tips.push("Demo PIN still set — change adminPin in config.js for live.");
-    }
     var el = $("live-warn");
     if (!el) return;
     if (!tips.length) {

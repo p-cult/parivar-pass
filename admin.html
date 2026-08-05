@@ -35,7 +35,7 @@
         <div class="btn-row">
           <button type="button" id="unlock">Unlock</button>
         </div>
-        <p class="hint">Demo PIN: param2468 — change in config.js for live use.</p>
+        <p class="hint" id="pin-hint"></p>
       </section>
 
       <section class="panel hidden" id="lookup-panel">
@@ -69,5 +69,14 @@
     <script src="api.js"></script>
     <script src="ui.js"></script>
     <script src="admin.js"></script>
+    <script>
+      (function () {
+        var c = window.PARIVAR_CONFIG || {};
+        var hint = document.getElementById("pin-hint");
+        if (!hint) return;
+        hint.textContent =
+          c.mode === "sheets" ? "Staff PIN required." : "Demo PIN: " + (c.adminPin || "param2468");
+      })();
+    </script>
   </body>
 </html>

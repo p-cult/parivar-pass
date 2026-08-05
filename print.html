@@ -37,10 +37,7 @@
         <div class="btn-row">
           <button type="button" id="unlock">Unlock</button>
         </div>
-        <p class="hint">
-          Demo PIN: <code id="demo-pin">param2468</code>
-          — change in <code>config.js</code> for live use.
-        </p>
+        <p class="hint" id="pin-hint"></p>
       </section>
 
       <section class="panel hidden" id="batch-panel">
@@ -75,9 +72,17 @@
     <script src="print.js"></script>
     <script>
       (function () {
-        var pin = (window.PARIVAR_CONFIG && window.PARIVAR_CONFIG.adminPin) || "param2468";
-        var el = document.getElementById("demo-pin");
-        if (el) el.textContent = pin;
+        var c = window.PARIVAR_CONFIG || {};
+        var hint = document.getElementById("pin-hint");
+        if (!hint) return;
+        if (c.mode === "sheets") {
+          hint.textContent = "Staff PIN required.";
+        } else {
+          hint.innerHTML =
+            "Demo PIN: <code>" +
+            (c.adminPin || "param2468") +
+            "</code>";
+        }
       })();
     </script>
   </body>
