@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Param Parivār Pass — Card</title>
+<style>
+  /* ---- Print setup: exact landscape card 85 × 55 mm ---- */
+  @page { size: 85mm 55mm; margin: 0; }
+
+  :root{
+    --card-w: 85mm;
+    --card-h: 55mm;
+    --yellow:  #fec20e;
+    --white:   #fffaef;
+    --ink:     #231f20;  /* near-black */
+    --brown:   #6d5719;  /* olive/brown headings */
+    --faded:   #b7a878;  /* muted event labels on white tabs */
+    /* Geometric sans stack; falls back cleanly for offline print */
+    --sans: "Montserrat","Poppins","Helvetica Neue",Arial,sans-serif;
+  }
+
+  html,body{ margin:0; padding:0; background:#4a4a4a; }
+
+  /* Screen: centre the card on a grey backdrop for preview */
+  body{ display:flex; align-items:center; justify-content:center; min-height:100vh; }
+
+  .card{
+    position:relative;
+    width:var(--card-w);
+    height:var(--card-h);
+    overflow:hidden;
+    background:var(--yellow);
+    color:var(--ink);
+    font-family:var(--sans);
+    /* Layout asset: yellow field + "Parivār Pass" mark + white QR box */
+    box-shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  .card__bg{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    display:block;
+    z-index:0;
+  }
+
+  /* All content sits above the background SVG */
+  .layer{ position:absolute; inset:0; z-index:1; }
+
+  /* ---------- LEFT: Scan label + QR ---------- */
+  .scan{
+    position:absolute;
+    /* centred over the QR white box (centre X = 6.4% + 24.1%/2 = 18.45%) */
+    left:18.45%; top:46.5%;
+    transform:translate(-50%, -5px);
+    font-size:2.5mm; font-weight:600; letter-spacing:.02em;
+    color:var(--ink); white-space:nowrap;
+  }
+  .qr{
+    position:absolute;
+    /* aligns to the white rounded box in pass-bg.svg (x12.15 y77.95 65.41²) */
+    left:6.4%;  top:52.5%;
+    width:24.1%; height:38.2%;
+    padding:1mm;
+    box-sizing:border-box;
+  }
+  .qr img, .qr svg{ width:100%; height:100%; display:block; }
+
+  /* Both column wrappers span the whole card so child left/top are card-relative */
+  .mid, .right{ position:absolute; inset:0; }
+  .mid *, .right *{ white-space:nowrap; }
+
+  /* ---------- MIDDLE COLUMN ---------- */
+  /* FREE ENTRY → Whitefield block (incl. white tabs): 10% smaller */
+  .mid-stack{
+    position:absolute; inset:0;
+    transform:scale(0.9);
+    transform-origin:38.3% 16.5%;
+  }
+  .free{
+    position:absolute; top:16.5%; left:38.3%;
+    font-size:3.7mm; font-weight:800; letter-spacing:.01em;
+    color:var(--brown); line-height:1;
+  }
+  .parsec{
+    position:absolute; top:21.5%; left:37.8%;
+    font-size:6.9mm; font-weight:800; color:var(--white);
+    line-height:1;
+  }
+
+  /* white notch tabs (stub left of the location name) */
+  .tab{
+    position:absolute;
+    background:var(--white);
+    height:5.4%;
+    border-radius:0 2.4mm 2.4mm 0;
+  }
+  .tab--jaya{ top:39.5%; left:38.3%; width:7%; }
+  .tab--white{ top:59%;  left:38.3%; width:7%; }
+
+  .disc40{
+    position:absolute; top:50.5%; left:38.3%;
+    font-size:3.32mm; font-weight:800; color:var(--brown); line-height:1;
+  }
+  .loc{
+    position:absolute; left:46.5%;
+    font-size:3.51mm; font-weight:700; letter-spacing:-.02em;
+    color:var(--ink); line-height:1;
+  }
+  .loc--jaya{ top:39%; }
+  .loc--white{ top:58.5%; }
+
+  .valid{
+    position:absolute; left:38.3%; top:88%;
+    transform:translateY(-2px);
+    height:calc(5.4% + 1px);
+    display:flex; align-items:center;
+    font-size:2.92mm; font-weight:700; color:var(--brown);
+  }
+  .tab--valid{
+    position:absolute; left:57.5%; top:88%;
+    transform:translate(-5px, -2px);
+    width:9.5%; height:calc(5.4% + 1px);
+    background:var(--white);
+    border-radius:0 2.4mm 2.4mm 0;
+  }
+  .valid-until{
+    position:absolute; left:67%; top:88%;
+    transform:translateY(-2px);
+    height:calc(5.4% + 1px);
+    display:flex; align-items:center;
+    font-size:2.6mm; font-weight:700; color:var(--ink);
+    white-space:nowrap;
+  }
+
+  /* vertical divider */
+  .divider{
+    position:absolute; left:67.5%; top:14%;
+    width:0; height:34%;
+    border-left:.35mm solid rgba(35,31,32,.5);
+    z-index:1;
+  }
+
+  /* ---------- RIGHT COLUMN ---------- */
+  .eventhdr{
+    position:absolute; top:16.5%; left:69%;
+    transform:translateX(5px);
+    font-size:2.72mm; font-weight:800; letter-spacing:.01em; line-height:1;
+  }
+  .eventhdr .p{ color:var(--brown); }
+  .eventhdr .e{ color:var(--ink); }
+
+  .big40{
+    position:absolute; top:21%; left:68.3%;
+    transform:translateX(5px);
+    font-size:8.4mm; font-weight:800; color:var(--ink); line-height:.9;
+  }
+  .big40 sup{ font-size:.42em; font-weight:800; vertical-align:.9em; }
+
+  .discount{
+    position:absolute; top:38.5%; left:68.3%;
+    transform:translateX(5px);
+    font-size:5.12mm; font-weight:300; color:var(--ink); line-height:1;
+  }
+
+  .evrow{
+    position:absolute; left:69.5%;
+    width:27.5%; height:7.4%;
+    background:var(--white);
+    border-radius:2.4mm;
+    display:flex; align-items:center;
+    padding-left:2.4mm; box-sizing:border-box;
+    font-size:3.12mm; font-weight:600; color:var(--faded);
+  }
+  .ev1{ top:55.5%; }
+  .ev2{ top:65.8%; }
+  .ev3{ top:76.1%; }
+  .ev4{ top:86.4%; }
+</style>
+</head>
+<body>
+
+  <div class="card">
+    <!-- Layout asset (yellow field, Parivār-Pass mark, QR white box) — inlined -->
+    <svg class="card__bg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240.94 155.91" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <style>
+          .bg0{fill:#fec20e}
+          .bg1{fill:#231f20}
+          .bg2{fill:#fffaef}
+        </style>
+      </defs>
+      <rect class="bg0" width="240.94" height="155.91"/>
+      <path class="bg2" d="M15.86-9.25h52.44v42.28c0,15.82-12.85,28.67-28.67,28.67H15.86V-9.25h0Z" transform="translate(68.3 -15.86) rotate(90)"/>
+      <g>
+        <path class="bg0" d="M28.61,18.53v-3.01h-5.51c-2.46,0-4.46,1.95-4.46,4.35v6.93h2.12v-3.15h3.39c2.51,0,4.46-2.75,4.46-5.12ZM26.49,18.53c0,1.33-1.13,3.06-2.34,3.06h-3.39v-1.72c0-1.26,1.05-2.28,2.34-2.28h3.39v.94Z"/>
+        <path class="bg0" d="M39.87,20.17v6.75h2.12v-6.75c0-1.42,1.19-2.58,2.65-2.58h1.59v-2.07h-1.59c-2.63,0-4.77,2.09-4.77,4.65Z"/>
+        <path class="bg0" d="M38.48,22.73v-3.01h-.02c-.24-2.35-2.27-4.19-4.74-4.19h-3.53v2.07h3.53c1.3,0,2.39.92,2.61,2.13h-2.56c-2.46,0-4.46,1.95-4.46,4.35v3.01h4.72c2.46,0,4.46-1.95,4.46-4.35ZM31.42,24.07c0-1.26,1.05-2.28,2.34-2.28h2.6v.94c0,1.26-1.05,2.28-2.34,2.28h-2.6v-.94Z"/>
+        <path class="bg0" d="M51.4,15.52h-3.53v2.07h3.53c1.3,0,2.39.92,2.61,2.13h-2.56c-2.46,0-4.46,1.95-4.46,4.35v3.01h4.72c2.46,0,4.46-1.95,4.46-4.35v-3.01h-.02c-.24-2.35-2.27-4.19-4.74-4.19ZM54.05,22.45v.28c0,1.26-1.05,2.28-2.34,2.28h-2.6v-.94c0-1.26,1.05-2.28,2.34-2.28h2.6v.66Z"/>
+        <path class="bg0" d="M68.19,15.52c-1.07,0-2.17.35-3.09.98v-.98h-2.59c-1.25,0-2.54.48-3.53,1.31-1.08.91-1.68,2.09-1.68,3.34v6.73h2.12v-6.73c0-1.46,1.66-2.58,3.09-2.58h.47v9.31h2.12v-6.73c0-1.46,1.66-2.58,3.09-2.58h.47v9.31h2.12v-11.38h-2.59Z"/>
+      </g>
+      <g>
+        <path class="bg1" d="M18.36,30.16h3.07c.83,0,1.44.23,1.86.63.44.41.69.99.69,1.68,0,1.3-.9,2.23-2.3,2.23h-1.59v2.28h-1.71v-6.81ZM21.32,33.36c.61,0,.95-.36.95-.9s-.35-.88-.95-.88h-1.25v1.78h1.25Z"/>
+        <path class="bg1" d="M24.01,35.61c0-1.08.86-1.4,1.87-1.53.91-.11,1.24-.21,1.24-.54,0-.31-.2-.52-.67-.52-.5,0-.74.22-.79.63h-1.43c.04-.9.73-1.68,2.21-1.68.73,0,1.23.13,1.58.4.42.3.62.78.62,1.39v2.46c0,.39.04.61.17.7v.07h-1.5c-.08-.1-.12-.29-.16-.54h-.02c-.29.41-.71.67-1.45.67-.97,0-1.67-.52-1.67-1.49ZM27.15,35.23v-.58c-.2.1-.49.18-.8.26-.6.13-.85.29-.85.66,0,.39.29.54.67.54.58,0,.98-.35.98-.88Z"/>
+        <path class="bg1" d="M29.38,32.09h1.49v.76h.03c.34-.58.74-.84,1.33-.84.14,0,.24,0,.3.04v1.33h-.04c-.95-.13-1.56.33-1.56,1.39v2.19h-1.55v-4.88Z"/>
+        <path class="bg1" d="M33.03,30.16h1.55v1.26h-1.55v-1.26ZM33.03,32.09h1.55v4.88h-1.55v-4.88Z"/>
+        <path class="bg1" d="M34.92,32.09h1.6l.67,2.2c.14.49.27.98.27.98h.02s.12-.5.27-.98l.68-2.2h1.55l-1.69,4.88h-1.68l-1.69-4.88Z"/>
+        <path class="bg1" d="M39.89,35.61c0-1.08.86-1.4,1.87-1.53.91-.11,1.24-.21,1.24-.54,0-.31-.2-.52-.67-.52-.5,0-.74.22-.79.63h-1.43c.04-.9.73-1.68,2.21-1.68.73,0,1.23.13,1.58.4.42.3.62.78.62,1.39v2.46c0,.39.04.61.17.7v.07h-1.5c-.08-.1-.12-.29-.16-.54h-.02c-.29.41-.71.67-1.45.67-.97,0-1.67-.52-1.67-1.49ZM41,30.42h2.72v.96h-2.72v-.96ZM43.03,35.23v-.58c-.2.1-.49.18-.8.26-.6.13-.85.29-.85.66,0,.39.29.54.67.54.58,0,.98-.35.98-.88Z"/>
+        <path class="bg1" d="M45.27,32.09h1.49v.76h.03c.34-.58.74-.84,1.33-.84.14,0,.24,0,.3.04v1.33h-.04c-.95-.13-1.56.33-1.56,1.39v2.19h-1.55v-4.88Z"/>
+        <path class="bg1" d="M50.48,30.16h3.07c.83,0,1.44.23,1.86.63.44.41.69.99.69,1.68,0,1.3-.9,2.23-2.3,2.23h-1.59v2.28h-1.71v-6.81ZM53.44,33.36c.61,0,.95-.36.95-.9s-.35-.88-.95-.88h-1.25v1.78h1.25Z"/>
+        <path class="bg1" d="M56.13,35.61c0-1.08.86-1.4,1.87-1.53.91-.11,1.24-.21,1.24-.54,0-.31-.2-.52-.67-.52-.5,0-.74.22-.79.63h-1.43c.04-.9.73-1.68,2.21-1.68.73,0,1.23.13,1.58.4.42.3.62.78.62,1.39v2.46c0,.39.04.61.17.7v.07h-1.5c-.08-.1-.12-.29-.16-.54h-.02c-.29.41-.71.67-1.45.67-.97,0-1.67-.52-1.67-1.49ZM59.27,35.23v-.58c-.2.1-.49.18-.8.26-.6.13-.85.29-.85.66,0,.39.29.54.67.54.58,0,.98-.35.98-.88Z"/>
+        <path class="bg1" d="M61.21,35.39h1.47c.06.49.38.72.9.72.47,0,.76-.17.76-.49,0-.44-.59-.49-1.24-.6-.85-.14-1.75-.37-1.75-1.51,0-1.03.95-1.56,2.1-1.56,1.38,0,2.12.6,2.2,1.56h-1.43c-.06-.44-.35-.57-.78-.57-.38,0-.68.14-.68.45,0,.34.55.39,1.17.5.86.14,1.87.36,1.87,1.61,0,1.07-.94,1.62-2.22,1.62-1.43,0-2.32-.66-2.37-1.73Z"/>
+        <path class="bg1" d="M66.05,35.39h1.47c.06.49.38.72.9.72.47,0,.76-.17.76-.49,0-.44-.59-.49-1.24-.6-.85-.14-1.75-.37-1.75-1.51,0-1.03.95-1.56,2.1-1.56,1.38,0,2.12.6,2.2,1.56h-1.43c-.06-.44-.35-.57-.78-.57-.38,0-.68.14-.68.45,0,.34.55.39,1.17.5.86.14,1.87.36,1.87,1.61,0,1.07-.94,1.62-2.22,1.62-1.43,0-2.32-.66-2.37-1.73Z"/>
+      </g>
+      <rect class="bg2" x="12.15" y="77.95" width="65.41" height="65.41" rx="6.53" ry="6.53"/>
+    </svg>
+
+    <div class="layer">
+      <!-- LEFT -->
+      <div class="scan">Scan for R.S.V.P</div>
+      <div class="qr">
+        <!-- RSVP QR (inlined placeholder). Swap the <svg> below for your real QR. -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" shape-rendering="crispEdges" aria-label="RSVP QR code">
+          <rect width="100" height="100" fill="#fffaef"/>
+          <g fill="#231f20">
+            <path d="M8 8h24v24H8zM14 14v12h12V14z" fill-rule="evenodd"/>
+            <rect x="16" y="16" width="8" height="8"/>
+            <path d="M68 8h24v24H68zM74 14v12h12V14z" fill-rule="evenodd"/>
+            <rect x="76" y="16" width="8" height="8"/>
+            <path d="M8 68h24v24H8zM14 74v12h12V74z" fill-rule="evenodd"/>
+            <rect x="16" y="76" width="8" height="8"/>
+            <g>
+              <rect x="40" y="10" width="4" height="4"/><rect x="48" y="10" width="4" height="4"/><rect x="56" y="14" width="4" height="4"/>
+              <rect x="40" y="18" width="4" height="4"/><rect x="52" y="18" width="4" height="4"/><rect x="60" y="18" width="4" height="4"/>
+              <rect x="44" y="26" width="4" height="4"/><rect x="56" y="26" width="4" height="4"/>
+              <rect x="10" y="40" width="4" height="4"/><rect x="18" y="40" width="4" height="4"/><rect x="26" y="44" width="4" height="4"/>
+              <rect x="36" y="40" width="4" height="4"/><rect x="44" y="40" width="4" height="4"/><rect x="52" y="44" width="4" height="4"/><rect x="60" y="40" width="4" height="4"/><rect x="68" y="44" width="4" height="4"/><rect x="80" y="40" width="4" height="4"/><rect x="88" y="44" width="4" height="4"/>
+              <rect x="40" y="48" width="4" height="4"/><rect x="48" y="52" width="4" height="4"/><rect x="56" y="48" width="4" height="4"/><rect x="64" y="52" width="4" height="4"/><rect x="72" y="48" width="4" height="4"/><rect x="84" y="52" width="4" height="4"/>
+              <rect x="10" y="52" width="4" height="4"/><rect x="22" y="56" width="4" height="4"/><rect x="30" y="52" width="4" height="4"/>
+              <rect x="40" y="60" width="4" height="4"/><rect x="52" y="60" width="4" height="4"/><rect x="60" y="64" width="4" height="4"/><rect x="72" y="60" width="4" height="4"/><rect x="84" y="64" width="4" height="4"/>
+              <rect x="44" y="70" width="4" height="4"/><rect x="56" y="74" width="4" height="4"/><rect x="68" y="70" width="4" height="4"/><rect x="80" y="74" width="4" height="4"/><rect x="88" y="70" width="4" height="4"/>
+              <rect x="40" y="80" width="4" height="4"/><rect x="52" y="84" width="4" height="4"/><rect x="64" y="80" width="4" height="4"/><rect x="76" y="84" width="4" height="4"/><rect x="84" y="80" width="4" height="4"/>
+              <rect x="44" y="88" width="4" height="4"/><rect x="60" y="88" width="4" height="4"/><rect x="72" y="88" width="4" height="4"/><rect x="88" y="88" width="4" height="4"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <!-- MIDDLE -->
+      <div class="mid">
+        <div class="mid-stack">
+          <div class="free">FREE ENTRY</div>
+          <div class="parsec">Parsec</div>
+          <div class="tab tab--jaya"></div>
+          <div class="loc loc--jaya">Jayanagar</div>
+          <div class="disc40">40% Discount</div>
+          <div class="tab tab--white"></div>
+          <div class="loc loc--white">Whitefield</div>
+        </div>
+        <div class="valid">Valid Till</div>
+        <div class="tab--valid"></div>
+        <div class="valid-until"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- RIGHT -->
+      <div class="right">
+        <div class="eventhdr"><span class="p">PARAM </span><span class="e">EVENT</span></div>
+        <div class="big40">40<sup>%</sup></div>
+        <div class="discount">Discount</div>
+        <div class="evrow ev1">Event - 01</div>
+        <div class="evrow ev2">Event - 02</div>
+        <div class="evrow ev3">Event - 03</div>
+        <div class="evrow ev4">Event - 04</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

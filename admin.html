@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin desk — Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../core/tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a href="index.html">← Parivar Pass v2</a>
+      <a href="print.html">Print batch</a>
+    </nav>
+    <main>
+      <p class="mode-pill" id="mode-pill"></p>
+      <p class="eyebrow">Param staff only</p>
+      <h1>Admin desk</h1>
+      <p class="lede">
+        Scan or enter a pass ID. For Parsec / Whitefield: disable that privilege
+        after verifying at the ticket desk (before purchase). Cross-check event
+        RSVPs against the Sheet.
+      </p>
+      <p id="status" class="status hidden" role="status"></p>
+
+      <section class="panel" id="auth-panel">
+        <h2>Staff PIN</h2>
+        <label>PIN <input id="admin-pin" type="password" inputmode="numeric" /></label>
+        <div class="btn-row">
+          <button type="button" id="unlock">Unlock</button>
+        </div>
+        <p class="hint">Demo PIN: param2468 — change in config.js for live use.</p>
+      </section>
+
+      <section class="panel hidden" id="lookup-panel">
+        <h2>Look up pass</h2>
+        <label>
+          Pass ID (from QR)
+          <input id="pass-input" autocomplete="off" placeholder="PV2-…" />
+        </label>
+        <div class="btn-row">
+          <button type="button" id="lookup">Look up</button>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="detail-panel">
+        <h2>Bearer</h2>
+        <p class="pass-id" id="detail-id"></p>
+        <p id="detail-meta" class="hint"></p>
+        <p id="detail-person" class="hint"></p>
+        <h2 style="margin-top: 1rem">Privileges</h2>
+        <div id="slot-actions"></div>
+        <h2 style="margin-top: 1rem">History</h2>
+        <div id="history" class="hint"></div>
+        <p class="hint" style="margin-top: 1rem">
+          <a id="sheet-link" href="#" target="_blank" rel="noopener">Open published Sheet</a>
+          · No pass replacement
+        </p>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="demo-store.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>

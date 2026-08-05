@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pass holder — Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../core/tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a href="index.html">← Parivar Pass v2</a>
+    </nav>
+    <main>
+      <p class="mode-pill" id="mode-pill"></p>
+      <p class="eyebrow">Pass holder</p>
+      <h1>Your Parivar Pass</h1>
+      <p class="lede">
+        Keep your QR private. First person to register owns this pass. Event RSVP
+        uses that privilege even if you don’t attend. Parsec / Whitefield: show
+        this pass at the ticket desk before purchase.
+      </p>
+      <p id="status" class="status hidden" role="status"></p>
+
+      <section class="panel" id="lookup-panel">
+        <h2>Open pass</h2>
+        <label>
+          Pass ID
+          <input id="pass-input" autocomplete="off" placeholder="PV2-…" />
+        </label>
+        <div class="btn-row">
+          <button type="button" id="open-pass">Open</button>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="invalid-panel">
+        <h2>Pass invalid</h2>
+        <p id="invalid-reason"></p>
+        <p class="pass-id" id="invalid-id"></p>
+      </section>
+
+      <section class="panel hidden" id="register-panel">
+        <h2>Register now</h2>
+        <p class="hint">
+          First bearer for <span class="pass-id" id="reg-pass-id"></span>
+        </p>
+        <form id="register-form">
+          <label>Full name <input id="reg-name" required autocomplete="name" /></label>
+          <label>Phone <input id="reg-phone" required autocomplete="tel" /></label>
+          <label>Email (optional) <input id="reg-email" type="email" /></label>
+          <div class="btn-row">
+            <button type="submit">Complete registration</button>
+          </div>
+        </form>
+      </section>
+
+      <div id="proof-panel" class="proof hidden">
+        <p class="tag">Show at registration desk</p>
+        <p class="big" id="proof-title">REDEEMED</p>
+        <p id="proof-detail"></p>
+        <p class="pass-id" id="proof-pass"></p>
+      </div>
+
+      <section class="panel hidden" id="home-panel">
+        <h2>Hello, <span id="guest-name"></span></h2>
+        <p class="hint">
+          <span class="pass-id" id="guest-pass-id"></span> · Valid till
+          <span id="guest-valid"></span>
+        </p>
+        <p class="hint" id="social-line"></p>
+        <div id="benefit-list"></div>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="demo-store.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="audience.js"></script>
+  </body>
+</html>

@@ -1,0 +1,292 @@
+/**
+ * Card styles from param-parivar-pass.html — do not redesign.
+ * Standalone preview: param-parivar-pass.html (source of truth).
+ */
+:root {
+  --card-w: 85mm;
+  --card-h: 55mm;
+  --yellow: #fec20e;
+  --white: #fffaef;
+  --ink: #231f20;
+  --brown: #6d5719;
+  --faded: #b7a878;
+  --sans: "Montserrat", "Poppins", "Helvetica Neue", Arial, sans-serif;
+}
+
+.card {
+  position: relative;
+  width: var(--card-w);
+  height: var(--card-h);
+  overflow: hidden;
+  background: var(--yellow);
+  color: var(--ink);
+  font-family: var(--sans);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.card__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.scan {
+  position: absolute;
+  left: 18.45%;
+  top: 46.5%;
+  transform: translate(-50%, -5px);
+  font-size: 2.5mm;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.qr {
+  position: absolute;
+  left: 6.4%;
+  top: 52.5%;
+  width: 24.1%;
+  height: 38.2%;
+  padding: 1mm;
+  box-sizing: border-box;
+}
+
+.qr img,
+.qr svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.mid,
+.right {
+  position: absolute;
+  inset: 0;
+}
+
+.mid *,
+.right * {
+  white-space: nowrap;
+}
+
+/* ---------- MIDDLE COLUMN ---------- */
+/* FREE ENTRY → Whitefield block (incl. white tabs): 10% smaller */
+.mid-stack {
+  position: absolute;
+  inset: 0;
+  transform: scale(0.9);
+  transform-origin: 38.3% 16.5%;
+}
+
+.free {
+  position: absolute;
+  top: 16.5%;
+  left: 38.3%;
+  font-size: 3.7mm;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--brown);
+  line-height: 1;
+}
+
+.parsec {
+  position: absolute;
+  top: 21.5%;
+  left: 37.8%;
+  font-size: 6.9mm;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1;
+}
+
+.tab {
+  position: absolute;
+  background: var(--white);
+  height: 5.4%;
+  border-radius: 0 2.4mm 2.4mm 0;
+}
+
+.tab--jaya {
+  top: 39.5%;
+  left: 38.3%;
+  width: 7%;
+}
+
+.tab--white {
+  top: 59%;
+  left: 38.3%;
+  width: 7%;
+}
+
+.disc40 {
+  position: absolute;
+  top: 50.5%;
+  left: 38.3%;
+  font-size: 3.32mm;
+  font-weight: 800;
+  color: var(--brown);
+  line-height: 1;
+}
+
+.loc {
+  position: absolute;
+  left: 46.5%;
+  font-size: 3.51mm;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.loc--jaya {
+  top: 39%;
+}
+
+.loc--white {
+  top: 58.5%;
+}
+
+.valid {
+  position: absolute;
+  left: 38.3%;
+  top: 88%;
+  transform: translateY(-2px);
+  height: calc(5.4% + 1px);
+  display: flex;
+  align-items: center;
+  font-size: 2.92mm;
+  font-weight: 700;
+  color: var(--brown);
+}
+
+.tab--valid {
+  position: absolute;
+  left: 57.5%;
+  top: 88%;
+  transform: translate(-5px, -2px);
+  width: 9.5%;
+  height: calc(5.4% + 1px);
+  background: var(--white);
+  border-radius: 0 2.4mm 2.4mm 0;
+}
+
+.valid-until {
+  position: absolute;
+  left: 67%;
+  top: 88%;
+  transform: translateY(-2px);
+  height: calc(5.4% + 1px);
+  display: flex;
+  align-items: center;
+  font-size: 2.6mm;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.divider {
+  position: absolute;
+  left: 67.5%;
+  top: 14%;
+  width: 0;
+  height: 34%;
+  border-left: 0.35mm solid rgba(35, 31, 32, 0.5);
+  z-index: 1;
+}
+
+.eventhdr {
+  position: absolute;
+  top: 16.5%;
+  left: 69%;
+  transform: translateX(5px);
+  font-size: 2.72mm;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.eventhdr .p {
+  color: var(--brown);
+}
+
+.eventhdr .e {
+  color: var(--ink);
+}
+
+.big40 {
+  position: absolute;
+  top: 21%;
+  left: 68.3%;
+  transform: translateX(5px);
+  font-size: 8.4mm;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 0.9;
+}
+
+.big40 sup {
+  font-size: 0.42em;
+  font-weight: 800;
+  vertical-align: 0.9em;
+}
+
+.discount {
+  position: absolute;
+  top: 38.5%;
+  left: 68.3%;
+  transform: translateX(5px);
+  font-size: 5.12mm;
+  font-weight: 300;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.evrow {
+  position: absolute;
+  left: 69.5%;
+  width: 27.5%;
+  height: 7.4%;
+  background: var(--white);
+  border-radius: 2.4mm;
+  display: flex;
+  align-items: center;
+  padding-left: 2.4mm;
+  box-sizing: border-box;
+  font-size: 3.12mm;
+  font-weight: 600;
+  color: var(--faded);
+}
+
+.ev1 {
+  top: 55.5%;
+}
+
+.ev2 {
+  top: 65.8%;
+}
+
+.ev3 {
+  top: 76.1%;
+}
+
+.ev4 {
+  top: 86.4%;
+}
+
+@media print {
+  .card {
+    box-shadow: none;
+  }
+}

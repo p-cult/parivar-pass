@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Design pass — Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../core/tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pass.css" />
+    <style>
+      .design-stage {
+        display: grid;
+        gap: 1.25rem;
+      }
+      @media (min-width: 820px) {
+        .design-stage {
+          grid-template-columns: minmax(16rem, 20rem) 1fr;
+          align-items: start;
+        }
+      }
+      .pass-stage {
+        background: #4a4a4a;
+        border-radius: 6px;
+        padding: 1.5rem;
+        min-height: 20rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pass-preview {
+        line-height: 0;
+      }
+      .pass-preview .card {
+        zoom: 2;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="topnav">
+      <a href="index.html">← Parivar Pass v2</a>
+      <a href="print.html">Generate print PDF</a>
+      <a href="param-parivar-pass.html" target="_blank" rel="noopener"
+        >Source design (as-is)</a
+      >
+    </nav>
+    <main class="wide">
+      <p class="mode-pill">Landscape · 8.5 × 5.5 cm</p>
+      <p class="eyebrow">Pass art</p>
+      <h1>Design the pass</h1>
+      <p class="lede">
+        Exact design from
+        <a href="param-parivar-pass.html"><code>param-parivar-pass.html</code></a
+        >. Live QR for the pass ID below; print batch uses the same card.
+      </p>
+
+      <div class="design-stage">
+        <section class="panel">
+          <h2>Preview data</h2>
+          <label>
+            Pass ID (for QR link)
+            <input id="pass-id" value="PV2-DESIGN01" autocomplete="off" />
+          </label>
+          <div class="btn-row">
+            <button type="button" id="refresh">Refresh preview</button>
+            <a class="button secondary" href="print.html">Print batch</a>
+          </div>
+        </section>
+
+        <div class="pass-stage" aria-label="Pass preview">
+          <div class="pass-preview" id="pass-frame"></div>
+        </div>
+      </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="ui.js"></script>
+    <script src="pass-html.js"></script>
+    <script>
+      (function () {
+        var UI = window.ParivarUI;
+        var $ = UI.$;
+
+        function paint() {
+          var passId = $("pass-id").value.trim() || "PV2-DESIGN01";
+          var audience =
+            location.origin +
+            location.pathname.replace(/[^/]+$/, "") +
+            "audience.html?pass=" +
+            encodeURIComponent(passId);
+          UI.qrDataUrl(audience, 220).then(function (qr) {
+            var d = new Date();
+            d.setMonth(d.getMonth() + 6);
+            $("pass-frame").innerHTML = window.ParivarPassHTML.render(
+              {
+                passId: passId,
+                validUntil: d.toISOString().slice(0, 10),
+              },
+              qr
+            );
+          });
+        }
+
+        $("refresh").addEventListener("click", paint);
+        UI.onEnter($("pass-id"), paint);
+        paint();
+      })();
+    </script>
+  </body>
+</html>

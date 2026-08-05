@@ -1,0 +1,366 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body, "Source Sans 3", system-ui, sans-serif);
+  color: var(--ink, #1c1914);
+  background:
+    radial-gradient(ellipse 60% 40% at 100% 0%, #f0d9b8 0%, transparent 50%),
+    var(--paper, #f6f1e8);
+  padding: 1.1rem clamp(1rem, 4vw, 2rem) 2.5rem;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--sea, #2a5f6e);
+  font-weight: 600;
+}
+
+.topnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.25rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.topnav a {
+  text-decoration: none;
+}
+
+main {
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+main.wide {
+  max-width: 52rem;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--clay, #c45c26);
+}
+
+h1 {
+  margin: 0.25rem 0 0.5rem;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: clamp(1.75rem, 6vw, 2.2rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.lede {
+  margin: 0 0 1.25rem;
+  color: var(--ink-soft, #4a453c);
+}
+
+.panel {
+  background: var(--surface, #fffdf8);
+  border: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.panel h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: 1.1rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink-soft, #4a453c);
+  margin-bottom: 0.75rem;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+  border-radius: 4px;
+  background: #fff;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+button,
+.button {
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  border-radius: 3px;
+  padding: 0.7rem 1.1rem;
+  background: var(--clay, #c45c26);
+  color: #fff;
+  text-decoration: none;
+  display: inline-block;
+}
+
+button.secondary,
+.button.secondary {
+  background: transparent;
+  color: var(--sea, #2a5f6e);
+  box-shadow: inset 0 0 0 2px var(--sea, #2a5f6e);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.status-info {
+  background: rgba(42, 95, 110, 0.1);
+  color: var(--sea, #2a5f6e);
+}
+
+.status-ok {
+  background: rgba(47, 107, 79, 0.12);
+  color: #1e4a36;
+}
+
+.status-bad {
+  background: rgba(154, 64, 24, 0.12);
+  color: #9a4018;
+}
+
+.pass-id {
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.04em;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.mode-pill {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 2px;
+  background: rgba(42, 95, 110, 0.12);
+  color: var(--sea, #2a5f6e);
+  margin-bottom: 0.75rem;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: var(--muted, #6b6458);
+}
+
+.hint code,
+.role-card code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink, #1c1914);
+  background: rgba(28, 25, 20, 0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+
+.hint ul,
+ul.hint {
+  margin: 0.35rem 0 0;
+  padding-left: 1.15rem;
+}
+
+.hint li {
+  margin: 0.35rem 0;
+}
+
+.role-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.role-card {
+  display: block;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+  border-radius: 4px;
+  background: var(--surface, #fffdf8);
+  text-decoration: none;
+  color: inherit;
+}
+
+.role-card strong {
+  display: block;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: 1.2rem;
+  margin-bottom: 0.25rem;
+}
+
+.benefit {
+  border-top: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+  padding: 0.85rem 0;
+}
+
+.benefit:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.benefit h3 {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: 1.05rem;
+}
+
+.benefit .tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--clay, #c45c26);
+}
+
+.proof {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  background: #1e4a36;
+  color: #fff;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.proof .big {
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: 1.75rem;
+  margin: 0.35rem 0;
+}
+
+/* A3 print sheet */
+.print-sheet {
+  display: none;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+  @page {
+    size: A3 portrait;
+    margin: 8mm;
+  }
+  .a3-page {
+    page-break-after: always;
+    width: 281mm;
+    height: 404mm;
+    display: grid;
+    grid-template-columns: repeat(3, 85mm);
+    grid-template-rows: repeat(7, 55mm);
+    gap: 3mm;
+    justify-content: start;
+    align-content: start;
+  }
+  .a3-page:last-child {
+    page-break-after: auto;
+  }
+  .a3-page .pass-cell {
+    width: 85mm;
+    height: 55mm;
+    overflow: hidden;
+    border: none;
+    outline: none;
+    box-shadow: none;
+  }
+  .a3-page .card {
+    width: 85mm;
+    height: 55mm;
+    box-shadow: none;
+  }
+}
+
+.a3-preview {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+  padding: 0.5rem;
+  background: #ddd;
+}
+
+.a3-page-preview {
+  background: #fff;
+  margin: 0 auto 1rem;
+  padding: 8mm;
+  width: 297mm;
+  min-height: 420mm;
+  transform-origin: top left;
+  display: grid;
+  grid-template-columns: repeat(3, 85mm);
+  grid-template-rows: repeat(7, 55mm);
+  gap: 3mm;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.a3-page-preview .pass-cell {
+  width: 85mm;
+  height: 55mm;
+  overflow: hidden;
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.a3-page-preview .card {
+  width: 85mm;
+  height: 55mm;
+  box-shadow: none;
+}
+
+@media (max-width: 720px) {
+  main.wide {
+    max-width: 100%;
+  }
+}

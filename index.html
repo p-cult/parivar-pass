@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../core/tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="topnav no-print">
+      <a href="../index.html">← Kits</a>
+      <a href="../../index.html">Appgust</a>
+    </nav>
+    <main class="no-print">
+      <p class="mode-pill" id="mode-pill"></p>
+      <p class="eyebrow">Param · trackable pass</p>
+      <h1>Parivar Pass v2</h1>
+      <p class="lede">
+        Unique QR passes for select people. First scanner registers. Event RSVPs
+        use a slot. Parsec / Whitefield are disabled at the ticket desk by staff
+        (admin link). Valid 6 months from print generation. No replacements.
+      </p>
+      <div class="role-grid">
+        <a class="role-card" href="audience.html">
+          <strong>Pass holder</strong>
+          <span>Register · RSVP events · see remaining privileges</span>
+        </a>
+        <a class="role-card" href="print.html">
+          <strong>Generate print PDF</strong>
+          <span>HTML/CSS passes · 21 per A3 · PIN <code>param2468</code></span>
+        </a>
+        <a class="role-card" href="param-parivar-pass.html">
+          <strong>Pass design (source)</strong>
+          <span>Exact card HTML · 8.5 × 5.5 cm</span>
+        </a>
+        <a class="role-card" href="design.html">
+          <strong>Live preview + QR</strong>
+          <span>Same design · live pass QR</span>
+        </a>
+      </div>
+      <section class="panel" style="margin-top: 1.25rem">
+        <h2>Try demo</h2>
+        <ul class="hint">
+          <li>
+            <a href="print.html"><strong>Generate print PDF</strong></a>
+            — unlock with PIN <code>param2468</code>, then Generate (21 / A3)
+          </li>
+          <li>
+            <a href="audience.html?pass=PV2-DEMOOPEN01"><code>PV2-DEMOOPEN01</code></a>
+            — blank → register
+          </li>
+          <li>
+            <a href="audience.html?pass=PV2-DEMOACTIVE"><code>PV2-DEMOACTIVE</code></a>
+            — registered bearer
+          </li>
+          <li>
+            <a href="admin.html"><strong>Admin desk</strong></a>
+            — PIN <code>param2468</code> · look up <code>PV2-DEMOACTIVE</code>
+          </li>
+        </ul>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="ui.js"></script>
+    <script>
+      document.getElementById("mode-pill").textContent = ParivarUI.modeLabel();
+    </script>
+  </body>
+</html>

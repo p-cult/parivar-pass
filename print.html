@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Print batch — Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../../core/tokens.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pass.css" />
+  </head>
+  <body>
+    <nav class="topnav no-print">
+      <a href="index.html">← Parivar Pass v2</a>
+      <a href="admin.html">Admin desk</a>
+    </nav>
+
+    <main class="wide no-print">
+      <p class="mode-pill" id="mode-pill"></p>
+      <p class="eyebrow">On-demand print</p>
+      <h1>Generate A3 PDF</h1>
+      <p class="lede">
+        Creates unique HTML/CSS passes (landscape 8.5 × 5.5 cm), packs 21 per A3 portrait page.
+        Valid Till = generation date + 6 months. Use Print → Save as PDF.
+      </p>
+      <p id="status" class="status hidden" role="status"></p>
+      <p id="live-warn" class="status hidden" role="status"></p>
+
+      <section class="panel" id="auth-panel">
+        <h2>Staff PIN</h2>
+        <label>PIN <input id="admin-pin" type="password" autocomplete="current-password" /></label>
+        <div class="btn-row">
+          <button type="button" id="unlock">Unlock</button>
+        </div>
+        <p class="hint">
+          Demo PIN: <code id="demo-pin">param2468</code>
+          — change in <code>config.js</code> for live use.
+        </p>
+      </section>
+
+      <section class="panel hidden" id="batch-panel">
+        <h2>Batch</h2>
+        <label>
+          How many passes?
+          <input id="qty" type="number" min="1" max="210" value="21" />
+        </label>
+        <label>
+          Batch note
+          <input id="notes" placeholder="Select recipients · Aug season" />
+        </label>
+        <div class="btn-row">
+          <button type="button" id="generate">Generate</button>
+          <button type="button" class="secondary" id="do-print" disabled>
+            Print / Save PDF
+          </button>
+        </div>
+        <p class="hint" id="batch-meta"></p>
+      </section>
+
+      <div class="a3-preview hidden" id="preview"></div>
+    </main>
+
+    <div class="print-sheet" id="print-root" aria-hidden="true"></div>
+
+    <script src="config.js"></script>
+    <script src="demo-store.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="pass-html.js"></script>
+    <script src="print.js"></script>
+    <script>
+      (function () {
+        var pin = (window.PARIVAR_CONFIG && window.PARIVAR_CONFIG.adminPin) || "param2468";
+        var el = document.getElementById("demo-pin");
+        if (el) el.textContent = pin;
+      })();
+    </script>
+  </body>
+</html>
