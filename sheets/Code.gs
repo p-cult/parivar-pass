@@ -71,6 +71,14 @@ function dispatch(action, p) {
     if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
     return issueBatch_(p);
   }
+  if (action === "listBatches") {
+    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
+    return listBatches_();
+  }
+  if (action === "listPasses") {
+    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
+    return listPasses_();
+  }
   return fail_("Unknown action", "unknown");
 }
 
@@ -583,12 +591,31 @@ function qrFolder_() {
   return folder;
 }
 
+/** Root Drive folder for minted batch vaults. */
+function vaultRoot_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty("VAULT_FOLDER_ID");
+  if (id) {
+    try {
+      return DriveApp.getFolderById(id);
+    } catch (err) {
+      /* recreate */
+    }
+  }
+  var name = "Parivar Pass Vault";
+  var it = DriveApp.getFoldersByName(name);
+  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
+  props.setProperty("VAULT_FOLDER_ID", folder.getId());
+  return folder;
+}
+
 /**
  * Create/replace Drive file {passId}.svg and return { svg, fileUrl, fileId }.
+ * Optional folder overrides default QR folder.
  */
-function storePassQrSvg_(passId, payloadUrl) {
+function storePassQrSvg_(passId, payloadUrl, folder) {
   var svg = fetchQrSvg_(payloadUrl);
-  var folder = qrFolder_();
+  folder = folder || qrFolder_();
   var safe = String(passId).replace(/[^\w.-]+/g, "_") + ".svg";
   var existing = folder.getFilesByName(safe);
   while (existing.hasNext()) {
@@ -601,6 +628,168 @@ function storePassQrSvg_(passId, payloadUrl) {
     /* still usable for spreadsheet owner */
   }
   return { svg: svg, fileUrl: file.getUrl(), fileId: file.getId() };
+}
+
+function shareFolderAnyone_(folder) {
+  try {
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (err) {
+    /* owner access still works */
+  }
+}
+
+function vaultPrintHtml_(batchId, gen, until, notes, created) {
+  var cards = created
+    .map(function (pass) {
+      var svg = pass.qrSvg || "";
+      return (
+        '<article class="card">' +
+        '<div class="qr">' +
+        svg +
+        "</div>" +
+        "<p class=\"id\">" +
+        String(pass.passId) +
+        "</p>" +
+        "<p class=\"meta\">Valid till " +
+        String(pass.validUntil || until) +
+        "</p>" +
+        "</article>"
+      );
+    })
+    .join("\n");
+  return (
+    "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/>" +
+    "<title>" +
+    batchId +
+    "</title>" +
+    "<style>" +
+    "body{font-family:system-ui,sans-serif;margin:16px;background:#f6f1e8}" +
+    "h1{font-size:1.2rem} .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}" +
+    ".card{background:#fec20e;padding:10px;border-radius:4px}" +
+    ".qr svg{width:100%;height:auto;background:#fffaef;display:block}" +
+    ".id{font-weight:700;font-size:12px;margin:8px 0 0;word-break:break-all}" +
+    ".meta{font-size:11px;margin:4px 0 0}" +
+    "@media print{body{margin:0;background:#fff} .card{-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
+    "</style></head><body>" +
+    "<h1>Parivar Pass batch " +
+    batchId +
+    "</h1>" +
+    "<p>" +
+    created.length +
+    " passes · generated " +
+    gen +
+    " · valid till " +
+    until +
+    (notes ? " · " + notes : "") +
+    "</p>" +
+    '<p><button onclick="window.print()">Print / Save PDF</button></p>' +
+    '<div class="grid">' +
+    cards +
+    "</div></body></html>"
+  );
+}
+
+function createBatchVault_(batchId, gen, until, notes, created) {
+  var root = vaultRoot_();
+  var folder = root.createFolder(batchId + "_" + gen);
+  shareFolderAnyone_(folder);
+  var manifest = {
+    batchId: batchId,
+    generatedAt: gen,
+    validUntil: until,
+    notes: notes || "",
+    quantity: created.length,
+    passIds: created.map(function (p) {
+      return p.passId;
+    }),
+  };
+  folder.createFile(
+    "batch.json",
+    JSON.stringify(manifest, null, 2),
+    MimeType.PLAIN_TEXT
+  );
+  var html = vaultPrintHtml_(batchId, gen, until, notes, created);
+  var printFile = folder.createFile(batchId + "_print.html", html, MimeType.HTML);
+  try {
+    printFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e1) {}
+  // Best-effort PDF via Drive conversion of HTML is unreliable; HTML is the vault reprint source.
+  created.forEach(function (pass) {
+    if (!pass.qrSvg) return;
+    var safe = String(pass.passId).replace(/[^\w.-]+/g, "_") + ".svg";
+    try {
+      var f = folder.createFile(safe, pass.qrSvg, "image/svg+xml");
+      f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (e2) {}
+  });
+  return {
+    batchId: batchId,
+    vaultFolderUrl: folder.getUrl(),
+    vaultFolderId: folder.getId(),
+    printHtmlUrl: printFile.getUrl(),
+  };
+}
+
+function listBatches_() {
+  var root = vaultRoot_();
+  var folders = root.getFolders();
+  var out = [];
+  while (folders.hasNext()) {
+    var f = folders.next();
+    var printUrl = "";
+    var files = f.getFilesByName(f.getName().split("_")[0] + "_print.html");
+    // Prefer any *_print.html
+    var all = f.getFiles();
+    while (all.hasNext()) {
+      var file = all.next();
+      var n = file.getName();
+      if (/_print\.html$/i.test(n)) {
+        printUrl = file.getUrl();
+        break;
+      }
+    }
+    out.push({
+      name: f.getName(),
+      batchId: String(f.getName()).split("_")[0],
+      url: f.getUrl(),
+      id: f.getId(),
+      createdAt: f.getDateCreated() ? f.getDateCreated().toISOString() : "",
+      printHtmlUrl: printUrl,
+    });
+  }
+  out.sort(function (a, b) {
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  return ok_({
+    batches: out,
+    vaultUrl: root.getUrl(),
+  });
+}
+
+function listPasses_() {
+  var rows = rows_(PASSES);
+  var slim = rows.map(function (row) {
+    var p = enrich_(row);
+    return {
+      passId: p.passId,
+      status: p.status,
+      name: p.name,
+      phone: p.phone,
+      email: p.email,
+      generatedAt: p.generatedAt,
+      validUntil: p.validUntil,
+      notes: p.notes,
+      qrUrl: p.qrUrl,
+      qrSvgFile: p.qrSvgFile,
+      batchId: String(row.batchId || ""),
+      vaultFolder: String(row.vaultFolder || ""),
+      effectiveStatus: p.effectiveStatus,
+    };
+  });
+  slim.sort(function (a, b) {
+    return String(b.generatedAt).localeCompare(String(a.generatedAt));
+  });
+  return ok_({ passes: slim, count: slim.length });
 }
 
 function issueBatch_(p) {
@@ -636,12 +825,21 @@ function issueBatch_(p) {
       );
     }
   }
+  var batchId = "BAT-" + Utilities.getUuid().replace(/-/g, "").slice(0, 8).toUpperCase();
+  var batchFolder = null;
+  try {
+    var root = vaultRoot_();
+    batchFolder = root.createFolder(batchId + "_" + gen);
+    shareFolderAnyone_(batchFolder);
+  } catch (vaultErr) {
+    batchFolder = null;
+  }
   var created = [];
   for (var i = 0; i < qty; i++) {
     var id = "PV2-" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
     var rowNum = nextPassRow_(sh);
     var url = audienceUrl_(id);
-    var qr = storePassQrSvg_(id, url);
+    var qr = storePassQrSvg_(id, url, batchFolder || qrFolder_());
     var values = {};
     values.passId = id;
     values.qrUrl = url;
@@ -655,15 +853,95 @@ function issueBatch_(p) {
     values.validUntil = until;
     values.notes = p.notes || "";
     values.registeredAt = "";
+    if (h.batchId) values.batchId = batchId;
+    if (h.vaultFolder && batchFolder) values.vaultFolder = batchFolder.getUrl();
     slots.forEach(function (k) {
       values[k] = "open";
     });
     Object.keys(values).forEach(function (key) {
       set_(sh, rowNum, h, key, values[key]);
     });
-    created.push(enrich_(findPass_(id)));
+    var enriched = enrich_(findPass_(id));
+    enriched.qrSvg = qr.svg;
+    enriched.qrSvgFile = qr.fileUrl;
+    created.push(enriched);
   }
-  return ok_({ passes: created, generatedAt: gen, validUntil: until, quantity: qty });
+  var vault = null;
+  if (batchFolder) {
+    try {
+      var manifest = {
+        batchId: batchId,
+        generatedAt: gen,
+        validUntil: until,
+        notes: p.notes || "",
+        quantity: created.length,
+        passIds: created.map(function (pass) {
+          return pass.passId;
+        }),
+      };
+      batchFolder.createFile(
+        "batch.json",
+        JSON.stringify(manifest, null, 2),
+        MimeType.PLAIN_TEXT
+      );
+      var html = vaultPrintHtml_(batchId, gen, until, p.notes || "", created);
+      var printFile = batchFolder.createFile(
+        batchId + "_print.html",
+        html,
+        MimeType.HTML
+      );
+      try {
+        printFile.setSharing(
+          DriveApp.Access.ANYONE_WITH_LINK,
+          DriveApp.Permission.VIEW
+        );
+      } catch (sharePrint) {}
+      vault = {
+        batchId: batchId,
+        vaultFolderUrl: batchFolder.getUrl(),
+        vaultFolderId: batchFolder.getId(),
+        printHtmlUrl: printFile.getUrl(),
+      };
+    } catch (buildErr) {
+      vault = batchFolder
+        ? {
+            batchId: batchId,
+            vaultFolderUrl: batchFolder.getUrl(),
+            vaultFolderId: batchFolder.getId(),
+            printHtmlUrl: "",
+            warning: String(buildErr),
+          }
+        : null;
+    }
+  }
+  // Strip heavy SVG from API response (still on Sheet / Drive)
+  var light = created.map(function (pass) {
+    return {
+      passId: pass.passId,
+      status: pass.status,
+      name: pass.name,
+      phone: pass.phone,
+      email: pass.email,
+      generatedAt: pass.generatedAt,
+      validUntil: pass.validUntil,
+      notes: pass.notes,
+      registeredAt: pass.registeredAt,
+      qrUrl: pass.qrUrl,
+      qrSvgFile: pass.qrSvgFile,
+      slots: pass.slots,
+      openCount: pass.openCount,
+      effectiveStatus: pass.effectiveStatus,
+      invalidReason: pass.invalidReason,
+    };
+  });
+  return ok_({
+    passes: light,
+    generatedAt: gen,
+    validUntil: until,
+    quantity: qty,
+    batchId: batchId,
+    vault: vault,
+  });
 }
 
 function pinOk_(pin) {

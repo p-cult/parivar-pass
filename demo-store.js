@@ -395,7 +395,37 @@ window.ParivarDemo = (function () {
         generatedAt: gen,
         validUntil: until,
         quantity: qty,
+        batchId: "BAT-DEMO",
+        vault: null,
       });
+    }
+
+    if (action === "listBatches") {
+      if (!checkPin(payload.pin)) return fail("Wrong admin PIN", "auth");
+      return ok({ batches: [], vaultUrl: "" });
+    }
+
+    if (action === "listPasses") {
+      if (!checkPin(payload.pin)) return fail("Wrong admin PIN", "auth");
+      var slim = data.passes.map(function (row) {
+        var p = enrich(row);
+        return {
+          passId: p.passId,
+          status: p.status,
+          name: p.name,
+          phone: p.phone,
+          email: p.email,
+          generatedAt: p.generatedAt,
+          validUntil: p.validUntil,
+          notes: p.notes,
+          qrUrl: "",
+          qrSvgFile: "",
+          batchId: "",
+          vaultFolder: "",
+          effectiveStatus: p.effectiveStatus,
+        };
+      });
+      return ok({ passes: slim, count: slim.length });
     }
 
     if (action === "resetDemo") {

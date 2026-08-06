@@ -56,6 +56,13 @@ You do **not** need this tab. Used vs unused is stored on **`passes`** in
 
 If you add a **Redemptions** tab anyway, the script may append a log row; missing tab is fine.
 
+## Mint vault
+
+Each Print → Generate creates a Drive folder under **Parivar Pass Vault** with:
+- `batch.json`, `{batchId}_print.html` (re-open → Print / Save PDF), per-pass QR SVGs
+
+Staff UI: `vault.html` (PIN). Optional Sheet columns: `batchId`, `vaultFolder`.
+
 ## Deploy
 
 1. Open the editable Sheet (not only pubhtml)  

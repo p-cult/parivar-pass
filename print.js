@@ -75,7 +75,8 @@
         lastPasses = res.data.passes || [];
         var per =
           (window.PARIVAR_CONFIG.a3 && window.PARIVAR_CONFIG.a3.perPage) || 21;
-        $("batch-meta").textContent =
+        var vault = res.data.vault;
+        var meta =
           lastPasses.length +
           " passes · generated " +
           res.data.generatedAt +
@@ -84,6 +85,7 @@
           " · " +
           Math.ceil(lastPasses.length / per) +
           " A3 page(s)";
+        $("batch-meta").textContent = meta;
         UI.setStatus($("status"), "Building print sheet…", "info");
         return renderSheets(lastPasses).then(function () {
           working = false;
@@ -91,11 +93,22 @@
           UI.show($("preview"), true);
           $("do-print").disabled = false;
           scalePreviews();
-          UI.setStatus(
-            $("status"),
-            "Ready — Print / Save as PDF (A3 portrait, 3×7).",
-            "ok"
-          );
+          var msg = "Ready — Print / Save as PDF (A3 portrait, 3×7).";
+          if (vault && vault.vaultFolderUrl) {
+            msg += " Saved to vault.";
+            $("batch-meta").innerHTML =
+              meta +
+              ' · <a href="' +
+              vault.vaultFolderUrl +
+              '" target="_blank" rel="noopener">Open vault folder</a>' +
+              (vault.printHtmlUrl
+                ? ' · <a href="' +
+                  vault.printHtmlUrl +
+                  '" target="_blank" rel="noopener">Print file</a>'
+                : "") +
+              ' · <a href="vault.html">Vault</a>';
+          }
+          UI.setStatus($("status"), msg, "ok");
         });
       })
       .catch(failNet);
