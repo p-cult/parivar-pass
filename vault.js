@@ -22,48 +22,40 @@
     }
     working = true;
     UI.setBusy($("unlock"), true, "Checking…");
-    API.call("adminLookup", { pin: pin, passId: "__pin_check__" })
-      .then(function (res) {
-        if (!res.ok) {
+    UI.setStatus($("status"), "Loading vault…", "info");
+    // Prefer listBatches as unlock (adminLookup __pin_check__ can 404 intermittently on GAS)
+    API.call("listBatches", { pin: pin })
+      .then(function (batches) {
+        if (!batches.ok) {
           working = false;
           UI.setBusy($("unlock"), false);
-          UI.setStatus($("status"), res.error || "Wrong PIN", "bad");
+          UI.setStatus($("status"), batches.error || "Wrong PIN / vault error", "bad");
           return null;
         }
         UI.show($("auth-panel"), false);
         UI.show($("vault-panel"), true);
-        UI.setStatus($("status"), "Loading vault…", "info");
-        return Promise.all([
-          API.call("listBatches", { pin: pin }),
-          API.call("listPasses", { pin: pin }),
-        ]);
+        renderBatches(batches.data || {});
+        return API.call("listPasses", { pin: pin }).then(function (passes) {
+          return { batches: batches, passes: passes };
+        });
       })
       .then(function (pair) {
         working = false;
         UI.setBusy($("unlock"), false);
         if (!pair) return;
-        var batches = pair[0];
-        var passes = pair[1];
-        if (!batches.ok) {
-          UI.setStatus($("status"), batches.error || "Could not list batches", "bad");
-        } else {
-          renderBatches(batches.data || {});
+        if (!pair.passes.ok) {
+          UI.setStatus($("status"), pair.passes.error || "Could not list passes", "bad");
+          return;
         }
-        if (!passes.ok) {
-          UI.setStatus($("status"), passes.error || "Could not list passes", "bad");
-        } else {
-          renderPasses(passes.data || {});
-          if (batches.ok) {
-            UI.setStatus(
-              $("status"),
-              (batches.data.batches || []).length +
-                " batches · " +
-                (passes.data.count || 0) +
-                " passes",
-              "ok"
-            );
-          }
-        }
+        renderPasses(pair.passes.data || {});
+        UI.setStatus(
+          $("status"),
+          ((pair.batches.data && pair.batches.data.batches) || []).length +
+            " batches · " +
+            (pair.passes.data.count || 0) +
+            " passes",
+          "ok"
+        );
       })
       .catch(function (err) {
         working = false;
