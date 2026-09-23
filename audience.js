@@ -48,14 +48,18 @@
       .then(function (res) {
         working = false;
         UI.setBusy($("open-pass"), false);
-        if (!res.ok) {
+        if (!res.ok || !res.data || !res.data.pass) {
           UI.show($("lookup-panel"), true);
           UI.show($("register-panel"), false);
           UI.show($("otp-panel"), false);
           UI.show($("home-panel"), false);
           UI.show($("invalid-panel"), false);
           UI.show($("proof-panel"), false);
-          UI.setStatus($("status"), res.error, "bad");
+          UI.setStatus(
+            $("status"),
+            (res.error) || "Lookup failed — try again.",
+            "bad"
+          );
           return;
         }
         if (res.data.benefits) benefits = res.data.benefits;
