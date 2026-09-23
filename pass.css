@@ -75,6 +75,7 @@
   position: absolute;
   left: 33%;
   top: 3%;
+  transform: translate(10px, 10px);
   width: 34%;
   font-size: 3mm;
   font-weight: 700;
