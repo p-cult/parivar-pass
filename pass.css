@@ -221,7 +221,7 @@
   left: 67.5%;
   top: 14%;
   width: 0;
-  height: 34%;
+  height: calc(34% - 10px);
   border-left: 0.35mm solid rgba(35, 31, 32, 0.5);
   z-index: 1;
 }
