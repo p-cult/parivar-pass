@@ -230,7 +230,7 @@
 .right-stack {
   position: absolute;
   inset: 0;
-  transform: translateY(15px) scale(0.8);
+  transform: translateY(12px) scale(0.8);
   transform-origin: 68.3% 16.5%;
 }
 
