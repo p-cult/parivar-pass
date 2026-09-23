@@ -300,13 +300,41 @@ function set_(sh, row, headers, key, val) {
   sh.getRange(row, headers[key]).setValue(val);
 }
 
+/**
+ * Locate one pass row by passId WITHOUT reading every column of every row —
+ * each row carries several KB of inline QR SVG text, so pulling the full
+ * sheet (rows_(PASSES)) just to match one passId got slower and slower as
+ * the sheet grew. Instead: read only the passId column across all rows to
+ * find the row number, then fetch just that single row's full data.
+ */
 function findPass_(passId) {
   var id = String(passId || "").trim().toUpperCase();
-  var rows = rows_(PASSES);
-  for (var i = 0; i < rows.length; i++) {
-    if (String(rows[i].passId).toUpperCase() === id) return rows[i];
+  var sh = sheet_(PASSES);
+  var headerRow = PASSES_HEADER_ROW;
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastCol < 1 || lastRow < headerRow + 1) return null;
+  var headerNames = sh
+    .getRange(headerRow, 1, 1, lastCol)
+    .getValues()[0]
+    .map(function (h) {
+      return String(h).trim();
+    });
+  var passIdCol = headerNames.indexOf("passId") + 1;
+  if (!passIdCol) return null;
+  var ids = sh.getRange(headerRow + 1, passIdCol, lastRow - headerRow, 1).getValues();
+  var rowNum = -1;
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim().toUpperCase() === id) {
+      rowNum = headerRow + 1 + i;
+      break;
+    }
   }
-  return null;
+  if (rowNum < 0) return null;
+  var rowVals = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
+  var o = { __row: rowNum };
+  for (var c = 0; c < headerNames.length; c++) o[headerNames[c]] = rowVals[c];
+  return o;
 }
 
 function enrich_(row) {
