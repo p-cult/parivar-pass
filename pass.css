@@ -70,16 +70,17 @@
   display: block;
 }
 
-.holder {
+/* Bearer name — reserved yellow strip right of the logo, above FREE ENTRY */
+.mint-name {
   position: absolute;
-  left: 6.4%;
-  top: 91.2%;
-  width: 24.1%;
-  font-size: 2.15mm;
+  left: 33%;
+  top: 3%;
+  width: 34%;
+  font-size: 3mm;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--ink);
-  text-align: center;
+  text-align: left;
   white-space: normal;
   overflow: hidden;
   display: -webkit-box;

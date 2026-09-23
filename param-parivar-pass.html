@@ -64,6 +64,15 @@
   }
   .qr img, .qr svg{ width:100%; height:100%; display:block; }
 
+  /* Bearer name — reserved yellow strip right of the logo, above FREE ENTRY */
+  .mint-name{
+    position:absolute; left:33%; top:3%; width:34%;
+    font-size:3mm; font-weight:700; line-height:1.15;
+    color:var(--ink); text-align:left; white-space:normal;
+    overflow:hidden; display:-webkit-box;
+    -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  }
+
   /* Both column wrappers span the whole card so child left/top are card-relative */
   .mid, .right{ position:absolute; inset:0; }
   .mid *, .right *{ white-space:nowrap; }
@@ -223,6 +232,7 @@
     <div class="layer">
       <!-- LEFT -->
       <div class="scan">Scan for R.S.V.P</div>
+      <div class="mint-name">Anjali Rao</div>
       <div class="qr">
         <!-- RSVP QR (inlined placeholder). Swap the <svg> below for your real QR. -->
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" shape-rendering="crispEdges" aria-label="RSVP QR code">
