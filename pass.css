@@ -103,7 +103,7 @@
 .mid-stack {
   position: absolute;
   inset: 0;
-  transform: translateY(40px) scale(0.9);
+  transform: translateY(35px) scale(0.9);
   transform-origin: 38.3% 16.5%;
 }
 
