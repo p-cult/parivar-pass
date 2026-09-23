@@ -219,7 +219,7 @@
 .divider {
   position: absolute;
   left: 67.5%;
-  top: calc(14% + 5px);
+  top: calc(14% + 10px);
   width: 0;
   height: calc(34% - 10px);
   border-left: 0.35mm solid rgba(35, 31, 32, 0.5);
