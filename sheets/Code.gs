@@ -113,8 +113,19 @@ function fmtDate_(v) {
   return Utilities.formatDate(new Date(v), Session.getScriptTimeZone(), "yyyy-MM-dd");
 }
 
-/** Catalog from events tab (row 10 headers / row 11+ data). */
+/**
+ * Catalog from events tab (row 10 headers / row 11+ data).
+ * Memoized per execution — getPass_/enrich_/benefits_ each call this, and
+ * without caching that meant re-reading the events sheet 2-3x per request.
+ */
+var EVENT_CATALOG_CACHE_ = null;
 function eventCatalog_() {
+  if (EVENT_CATALOG_CACHE_) return EVENT_CATALOG_CACHE_;
+  EVENT_CATALOG_CACHE_ = eventCatalogUncached_();
+  return EVENT_CATALOG_CACHE_;
+}
+
+function eventCatalogUncached_() {
   var rows;
   try {
     rows = rows_(EVENTS);
