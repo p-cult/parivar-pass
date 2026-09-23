@@ -400,6 +400,39 @@ window.ParivarDemo = (function () {
       });
     }
 
+    if (action === "adminAssign") {
+      if (!checkPin(payload.pin)) return fail("Wrong admin PIN", "auth");
+      var target;
+      if (payload.passId) {
+        target = findPass(data, payload.passId);
+        if (!target) return fail("Pass not found", "not_found");
+      } else {
+        target = null;
+        for (var ai = 0; ai < data.passes.length; ai++) {
+          var cand = data.passes[ai];
+          if (cand.status !== "unregistered") continue;
+          if (cand.validUntil && cand.validUntil < today()) continue;
+          target = cand;
+          break;
+        }
+        if (!target) return fail("No unregistered passes available", "none_available");
+      }
+      var ea = enrich(target);
+      if (ea.effectiveStatus === "invalid") {
+        return fail(ea.invalidReason === "valid_date_passed" ? "Pass expired" : "Pass exhausted", "invalid");
+      }
+      if (target.status !== "unregistered") return fail("Pass already registered", "already_registered");
+      if (!payload.name) return fail("Name required", "validation");
+      target.name = String(payload.name).trim();
+      target.phone = String(payload.phone || "").trim();
+      target.email = String(payload.email || "").trim();
+      if (payload.notes) target.notes = String(payload.notes).trim();
+      target.status = "active";
+      target.registeredAt = new Date().toISOString();
+      save(data);
+      return ok({ pass: enrich(target) });
+    }
+
     if (action === "listBatches") {
       if (!checkPin(payload.pin)) return fail("Wrong admin PIN", "auth");
       return ok({ batches: [], vaultUrl: "" });

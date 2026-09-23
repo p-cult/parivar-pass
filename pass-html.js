@@ -32,6 +32,10 @@ window.ParivarPassHTML = (function () {
     var qrHtml = qrDataUrl
       ? '<div class="qr"><img src="' + esc(qrDataUrl) + '" alt="" /></div>'
       : FALLBACK_QR;
+    var name = String(pass.name || "").trim();
+    if (name) {
+      qrHtml += '<div class="holder">' + esc(name) + "</div>";
+    }
     var html = CARD_TPL.replace("__QR_SLOT__", qrHtml);
     var until = formatUntil(pass.validUntil);
     return html.replace(

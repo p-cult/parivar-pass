@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Assign passes — Parivar Pass v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;600;700;800&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="pass.css" />
+    <style>
+      textarea#tsv {
+        width: 100%;
+        min-height: 9rem;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.85rem;
+        padding: 0.6rem;
+        box-sizing: border-box;
+      }
+      table.assign-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+      }
+      table.assign-table th,
+      table.assign-table td {
+        text-align: left;
+        padding: 0.35rem 0.5rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      table.assign-table td.err {
+        color: #b3261e;
+      }
+      table.assign-table td.ok {
+        color: #2e7d32;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="topnav no-print">
+      <a href="index.html">← Parivar Pass v2</a>
+      <a href="admin.html">Admin desk</a>
+      <a href="print.html">Print batch</a>
+    </nav>
+
+    <main class="wide no-print">
+      <p class="mode-pill" id="mode-pill"></p>
+      <p class="eyebrow">On-demand assignment</p>
+      <h1>Assign passes to people</h1>
+      <p class="lede">
+        Paste a name-per-line (or tab-separated <b>name, phone, email</b>) list.
+        Each row is written onto the next still-unregistered pass in the Sheet —
+        name/phone/email filled in, status set to <b>active</b> — exactly as if
+        that person had scanned and registered themselves. No new passes are
+        minted; this only fills in ones already printed and sitting unused.
+      </p>
+      <p id="status" class="status hidden" role="status"></p>
+
+      <section class="panel" id="auth-panel">
+        <h2>Staff PIN</h2>
+        <label>PIN <input id="admin-pin" type="password" autocomplete="current-password" /></label>
+        <div class="btn-row">
+          <button type="button" id="unlock">Unlock</button>
+        </div>
+        <p class="hint" id="pin-hint"></p>
+      </section>
+
+      <section class="panel hidden" id="paste-panel">
+        <h2>Paste list</h2>
+        <label>
+          One person per line — <code>Name</code> or <code>Name&lt;tab&gt;Phone</code> or
+          <code>Name&lt;tab&gt;Phone&lt;tab&gt;Email</code>
+          <textarea id="tsv" placeholder="Anjali Rao&#9;9876543210&#10;Rohit Shetty&#9;9876500000&#9;rohit@example.com"></textarea>
+        </label>
+        <div class="btn-row">
+          <button type="button" id="parse">Preview</button>
+        </div>
+        <div id="preview-wrap" class="hidden">
+          <p class="hint" id="preview-count"></p>
+          <table class="assign-table" id="preview-table"></table>
+          <div class="btn-row" style="margin-top: 0.75rem">
+            <button type="button" id="assign">Assign these people</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel hidden" id="results-panel">
+        <h2>Results</h2>
+        <p class="hint" id="results-summary"></p>
+        <table class="assign-table" id="results-table"></table>
+        <div class="btn-row" style="margin-top: 0.75rem">
+          <button type="button" id="do-print" disabled>Print / Save PDF of assigned passes</button>
+        </div>
+      </section>
+
+      <div class="a3-preview hidden" id="preview"></div>
+    </main>
+
+    <div class="print-sheet" id="print-root" aria-hidden="true"></div>
+
+    <script src="config.js"></script>
+    <script src="demo-store.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="pass-html.js"></script>
+    <script src="assign.js"></script>
+    <script>
+      (function () {
+        var c = window.PARIVAR_CONFIG || {};
+        var hint = document.getElementById("pin-hint");
+        if (!hint) return;
+        hint.textContent =
+          c.mode === "sheets" ? "Staff PIN required." : "Demo PIN: " + (c.adminPin || "param2468");
+      })();
+    </script>
+  </body>
+</html>

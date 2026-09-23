@@ -71,6 +71,10 @@ function dispatch(action, p) {
     if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
     return issueBatch_(p);
   }
+  if (action === "adminAssign") {
+    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
+    return adminAssign_(p);
+  }
   if (action === "listBatches") {
     if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
     return listBatches_();
@@ -536,6 +540,58 @@ function logRedemptionOptional_(passId, benefitId, by, name) {
   } catch (err) {
     /* Redemptions tab not required */
   }
+}
+
+/**
+ * Find the first still-unregistered, non-expired pass row in sheet order.
+ * Used by adminAssign_ when the caller doesn't pin a specific passId.
+ */
+function nextUnregisteredRow_() {
+  var rows = rows_(PASSES);
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.status || "unregistered") !== "unregistered") continue;
+    var until = fmtDate_(r.validUntil);
+    if (until && until < today) continue;
+    return r;
+  }
+  return null;
+}
+
+/**
+ * Bulk/staff assignment: takes an existing unregistered pass (auto-picked in
+ * sheet order, or a specific passId) and fills in the bearer's name/phone/
+ * email as if they had registered themselves — skips OTP, sets status
+ * "active" and registeredAt now. Used for handing out passes already
+ * printed/minted to specific people after the fact.
+ */
+function adminAssign_(p) {
+  var row = p.passId ? findPass_(p.passId) : nextUnregisteredRow_();
+  if (!row) {
+    return fail_(
+      p.passId ? "Pass not found" : "No unregistered passes available",
+      p.passId ? "not_found" : "none_available"
+    );
+  }
+  var pass = enrich_(row);
+  if (pass.effectiveStatus === "invalid") {
+    return fail_(
+      pass.invalidReason === "valid_date_passed" ? "Pass expired" : "Pass exhausted",
+      "invalid"
+    );
+  }
+  if (pass.status !== "unregistered") return fail_("Pass already registered", "already_registered");
+  if (!p.name) return fail_("Name required", "validation");
+  var sh = sheet_(PASSES);
+  var h = passesHeaders_(sh);
+  set_(sh, row.__row, h, "name", String(p.name).trim());
+  set_(sh, row.__row, h, "phone", String(p.phone || "").trim());
+  set_(sh, row.__row, h, "email", String(p.email || "").trim());
+  if (p.notes) set_(sh, row.__row, h, "notes", String(p.notes).trim());
+  set_(sh, row.__row, h, "status", "active");
+  set_(sh, row.__row, h, "registeredAt", new Date().toISOString());
+  return getPass_(String(row.passId));
 }
 
 function adminUpdate_(p) {

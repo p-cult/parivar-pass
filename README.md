@@ -25,6 +25,7 @@ python3 -m http.server 8000
 | [audience.html](audience.html) | Pass holder (QR lands here) |
 | [print.html](print.html) | Generate A3 PDF (PIN) |
 | [admin.html](admin.html) | **Staff only** |
+| [assign.html](assign.html) | **Staff only** — assign existing unregistered passes to named people |
 
 Demo passes: `PV2-DEMOOPEN01`, `PV2-DEMOACTIVE`  
 Demo PIN: `param2468` (change in `config.js`)
@@ -66,6 +67,21 @@ publicBaseUrl: "https://YOUR_USER.github.io/app-a-day/kits/season-pass/audience.
 ```
 
 See [sheets/README.md](sheets/README.md) for column headers.
+
+## Assign existing passes to people (assign.html)
+
+For passes already minted/printed but sitting unregistered: paste a
+name-per-line list (`Name`, `Name<tab>Phone`, or `Name<tab>Phone<tab>Email`)
+into [assign.html](assign.html). Each row is written onto the next
+still-unregistered, non-expired pass in the Sheet — same effect as that
+person scanning and registering themselves (status → `active`,
+`registeredAt` stamped), just done by staff in bulk. No new passIds are
+minted. Once assigned, print those specific passes (QR + name on the card)
+straight from the same page.
+
+Backend: uses a new `adminAssign` action in `sheets/Code.gs` — **after
+pulling this change, redeploy the Apps Script** (Deploy → Manage deployments
+→ Edit → New version) before assign.html will work against the live Sheet.
 
 ## Privileges
 
