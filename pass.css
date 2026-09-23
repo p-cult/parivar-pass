@@ -201,16 +201,19 @@
 
 .valid-until {
   position: absolute;
-  left: 67%;
+  left: 57.5%;
   top: 88%;
-  transform: translateY(-2px);
+  transform: translate(-5px, -2px);
+  width: 9.5%;
   height: calc(5.4% + 1px);
   display: flex;
   align-items: center;
-  font-size: 2.6mm;
+  justify-content: center;
+  font-size: 2.15mm;
   font-weight: 700;
   color: var(--ink);
   white-space: nowrap;
+  z-index: 2;
 }
 
 .divider {
