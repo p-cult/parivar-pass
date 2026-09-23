@@ -24,7 +24,7 @@ window.ParivarPassHTML = (function () {
     if (p.length !== 3) return esc(iso);
     var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     var m = months[Number(p[1]) - 1] || p[1];
-    return esc(p[2] + " " + m + " " + String(p[0]).slice(2));
+    return esc(m + " " + String(p[0]).slice(2));
   }
 
   function render(pass, qrDataUrl) {
