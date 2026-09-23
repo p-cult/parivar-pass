@@ -371,7 +371,10 @@ function enrich_(row) {
     notes: String(row.notes || ""),
     registeredAt: String(row.registeredAt || ""),
     qrUrl: String(row.qrUrl || ""),
-    qrSvg: String(row.qrSvg || ""),
+    // qrSvg deliberately omitted: nothing in audience.js/admin.js/assign.js
+    // reads it, but it's several KB of raw SVG per row — needless payload on
+    // every single lookup over (often slow) mobile connections. issueBatch_
+    // re-attaches it explicitly for the one place that actually needs it.
     qrSvgFile: String(row.qrSvgFile || ""),
     slots: slots,
     openCount: openCount,
