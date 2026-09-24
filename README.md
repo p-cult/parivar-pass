@@ -34,6 +34,16 @@ Paste `sheets/Code.gs` into the Sheet's Apps Script project, then
 **Deploy → Manage deployments → Edit → New version** (Execute as: Me,
 Access: Anyone). The URL stays the same, so `config.js` doesn't change.
 
+## Deploy the frontend
+
+Push to `main` (GitHub Pages). Every page loads its scripts and styles with a
+`?v=…` tag — change it whenever you ship JS/CSS so phones stop using the old
+copy immediately:
+
+```bash
+V=$(date +%Y%m%d%H%M); sed -E -i '' "s/\?v=[a-z0-9]+\"/?v=$V\"/g" *.html
+```
+
 ## Run locally
 
 ```bash
