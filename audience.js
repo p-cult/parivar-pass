@@ -6,6 +6,9 @@
   var cfg = window.PARIVAR_CONFIG || {};
   var passId = UI.passParam();
   var working = false;
+  // Last-seen copy of an active pass on this phone, so a repeat scan paints the
+  // dashboard instantly while the Sheet is re-read in the background.
+  var CACHE_PREFIX = "parivar:pass:";
 
   var social = cfg.social || {};
   if (social.label && social.instagram) {
@@ -50,10 +53,6 @@
       UI.show($(id), false);
     });
   }
-
-  // Last-seen copy of an active pass on this phone, so a repeat scan paints the
-  // dashboard instantly while the Sheet is re-read in the background.
-  var CACHE_PREFIX = "parivar:pass:";
 
   function readCache(id) {
     try {
