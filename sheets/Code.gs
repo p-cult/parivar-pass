@@ -80,6 +80,8 @@ function route_(action, p) {
   if (action === "mint") return mint_(p, staff);
   if (action === "listBatches") return listBatches_();
   if (action === "listPasses") return listPasses_();
+  if (action === "listStaff") return listStaff_();
+  if (action === "saveStaff") return saveStaff_(p, staff);
   return fail_("Unknown action", "unknown");
 }
 
@@ -353,6 +355,87 @@ function listBatches_() {
   var list = Object.keys(batches).map(function (k) { return batches[k]; });
   list.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
   return ok_({ batches: list, vaultUrl: "" });
+}
+
+// ---------------------------------------------------------------- Staff management (admin)
+
+function staffRows_() {
+  var sh = sheet_(STAFF);
+  var last = sh.getLastRow();
+  var width = Math.max(sh.getLastColumn(), STAFF_HEADERS.length);
+  var head = sh.getRange(1, 1, 1, width).getValues()[0].map(function (h) {
+    return String(h).trim().toLowerCase();
+  });
+  var rows = [];
+  if (last >= 2) {
+    var vals = sh.getRange(2, 1, last - 1, width).getDisplayValues();
+    vals.forEach(function (line, i) {
+      var r = {};
+      head.forEach(function (h, c) { if (h) r[h] = line[c]; });
+      if (!String(r.name || "").trim() && !String(r.pin || "").trim()) return;
+      rows.push({
+        row: i + 2,
+        name: String(r.name || "").trim(),
+        pin: String(r.pin || "").trim(),
+        role: String(r.role || "").trim().toLowerCase() === "admin" ? "admin" : "checker",
+        active: String(r.active).trim().toUpperCase() !== "FALSE",
+        notes: String(r.notes || "").trim(),
+      });
+    });
+  }
+  return { sheet: sh, head: head, rows: rows };
+}
+
+function listStaff_() {
+  return ok_({ staff: staffRows_().rows });
+}
+
+/** p.pin is the caller's own PIN (auth); the staff member's PIN is p.staffPin. */
+function saveStaff_(p, by) {
+  var name = String(p.name || "").trim();
+  var pin = String(p.staffPin || "").trim();
+  var role = String(p.role || "checker").trim().toLowerCase() === "admin" ? "admin" : "checker";
+  var active = p.active !== false && String(p.active).toUpperCase() !== "FALSE";
+  var notes = String(p.notes || "").trim();
+  var rowNum = Number(p.row) || 0;
+  if (!name) return fail_("Name required", "validation");
+  if (!/^[A-Za-z0-9_-]{4,20}$/.test(pin)) {
+    return fail_("PIN must be 4–20 characters: letters, numbers, - or _", "validation");
+  }
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var t = staffRows_();
+    if (rowNum && !t.rows.some(function (r) { return r.row === rowNum; })) {
+      return fail_("That staff row no longer exists — reload", "not_found");
+    }
+    var clash = t.rows.filter(function (r) { return r.row !== rowNum && r.active && r.pin === pin; })[0];
+    if (active && clash) return fail_("PIN already used by " + clash.name, "validation");
+
+    var after = t.rows.map(function (r) {
+      return r.row === rowNum ? { role: role, active: active } : r;
+    });
+    if (!rowNum) after.push({ role: role, active: active });
+    if (!after.some(function (r) { return r.active && r.role === "admin"; })) {
+      return fail_("Keep at least one active admin", "validation");
+    }
+
+    var target = rowNum || Math.max(t.sheet.getLastRow() + 1, 2);
+    var values = { name: name, pin: pin, role: role, active: active, notes: notes };
+    STAFF_HEADERS.forEach(function (h) {
+      var col = t.head.indexOf(h) + 1;
+      if (!col) return;
+      var cell = t.sheet.getRange(target, col);
+      if (h === "pin") cell.setNumberFormat("@");
+      cell.setValue(values[h]);
+    });
+    log_("", "", (rowNum ? "staff updated: " : "staff added: ") + name + " (" + role + (active ? "" : ", disabled") + ")", by.name);
+  } finally {
+    lock.releaseLock();
+  }
+  CacheService.getScriptCache().remove("staff_v3");
+  return listStaff_();
 }
 
 // ---------------------------------------------------------------- Pass model

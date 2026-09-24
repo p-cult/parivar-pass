@@ -553,3 +553,72 @@ button.seg.on {
 .batch-row:first-child {
   border-top: none;
 }
+
+/* ---------- Admin: staff list ---------- */
+
+.staff-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+}
+
+.staff-row:first-child {
+  border-top: none;
+}
+
+.staff-off .staff-info strong {
+  color: var(--muted, #6b6458);
+  text-decoration: line-through;
+}
+
+.staff-info {
+  flex: 1 1 10rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.staff-pin {
+  font-weight: 700;
+  background: rgba(28, 25, 20, 0.06);
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+}
+
+.staff-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.staff-btns button {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.staff-form {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line, rgba(28, 25, 20, 0.12));
+}
+
+.staff-form h3 {
+  margin: 0 0 0.6rem;
+  font-family: var(--font-display, Fraunces, Georgia, serif);
+  font-size: 1rem;
+}
+
+.pin-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pin-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.role-grid + .panel {
+  margin-top: 1rem;
+}
