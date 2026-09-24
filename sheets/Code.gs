@@ -1,1060 +1,795 @@
 /**
- * Parivar Pass v2 — Google Apps Script
+ * Parivar Pass — Apps Script backend. The Google Sheet is the whole database.
  *
- * Sheet tabs: passes | events
- * (optional Redemptions log — not required; used/unused is on passes event_01… columns)
+ * Tabs
+ *   passes      one row per pass (headers on row 10, data from row 11).
+ *               Core columns: passId, qrUrl, status, type, name, phone, email,
+ *               batchId, generatedAt, validUntil, registeredAt, notes.
+ *               Then ONE COLUMN PER PRIVILEGE (column header = privilege id).
+ *               Cell values: enabled | used | disabled  (blank = privilege default).
+ *   privileges  id | title | kind | detail | url | redeemBy | default | active
+ *               kind: free | discount | link | file
+ *               redeemBy: staff (desk marks used) | holder (holder RSVPs) | none (view only)
+ *   staff       name | pin | role | active | notes      role: checker | admin
+ *   log         at | passId | privilege | action | by   (written automatically)
  *
- * passes + events layout:
- *   Row 10 = headers
- *   Row 11+ = data (rows 1–9 free for title / notes)
- *
- * passes columns:
- * passId, qrUrl, qrSvg (SVG markup for that pass QR), qrSvgFile (optional Drive link),
- * status, name, phone, email, generatedAt, validUntil, notes, registeredAt,
- * parsec_jayanagar, whitefield_40, plus one column per events!Event Code (open | redeemed)
- * Which events are used is determined ONLY by those event_01… columns (open vs redeemed).
- *
- * events columns (row 10):
- * Event List | Event Code | Event Date | Event link
- * Event Code must match the pass slot column header (e.g. event_01).
- * Audience UI titles/dates/links are read from this tab.
- *
- * Script properties: ADMIN_PIN; optional PUBLIC_BASE_URL for qrUrl
- * OTP: set OTP_ENABLED=true to enforce; wire sendOtpSms_ later.
- * Deploy as Web App → Anyone → paste URL into config.js (mode: "sheets")
+ * Deploy as Web App → Execute as: Me → Who has access: Anyone.
+ * Sheet menu "Parivar Pass → Set up / sync" creates missing tabs and columns.
  */
 
 var PASSES = "passes";
-var EVENTS = "events";
-var REDEMPTIONS = "Redemptions";
-var HEADER_ROW_10 = 10;
-var DATA_START_11 = 11;
-var PASSES_HEADER_ROW = HEADER_ROW_10;
-var PASSES_DATA_START = DATA_START_11;
-var REDEMPTIONS_HEADER_ROW = 1;
-var VENUE_COLS = ["parsec_jayanagar", "whitefield_40"];
-var FALLBACK_EVENT_CODES = ["event_01", "event_02", "event_03", "event_04"];
+var PRIVS = "privileges";
+var STAFF = "staff";
+var LOG = "log";
+var PASS_HEADER_ROW = 10;
+var PASS_DATA_START = 11;
+var CORE_COLS = [
+  "passId", "qrUrl", "status", "type", "name", "phone", "email",
+  "batchId", "generatedAt", "validUntil", "registeredAt", "notes",
+];
+var PRIV_HEADERS = ["id", "title", "kind", "detail", "url", "redeemBy", "default", "active"];
+var STAFF_HEADERS = ["name", "pin", "role", "active", "notes"];
+var LOG_HEADERS = ["at", "passId", "privilege", "action", "by"];
+var CACHE_SECONDS = 60;
+var LEGACY_ADMIN_PIN = "param2468";
+
+var ALIASES = {
+  adminLookup: "lookup",
+  adminRedeem: "setPrivilege",
+  adminAssign: "assign",
+  issueBatch: "mint",
+  rsvp: "holderUse",
+};
+
+// ---------------------------------------------------------------- HTTP
+
+function doGet() {
+  return json_({ ok: true, data: { service: "parivar-pass", version: 3 } });
+}
 
 function doPost(e) {
   try {
     var body = JSON.parse((e.postData && e.postData.contents) || "{}");
-    return json_(dispatch(body.action, body));
+    return json_(route_(body.action, body));
   } catch (err) {
-    return json_({ ok: false, error: String(err), code: "exception" });
+    return json_({ ok: false, error: String((err && err.message) || err), code: "exception" });
   }
 }
 
-function doGet() {
-  return json_({ ok: true, data: { service: "parivar-pass-v2" } });
-}
+function route_(action, p) {
+  action = ALIASES[action] || action;
+  ensureSetup_();
 
-function dispatch(action, p) {
   if (action === "getPass") return getPass_(p.passId);
-  if (action === "listBenefits") return ok_({ benefits: benefits_() });
-  if (action === "requestOtp") return requestOtp_(p);
-  if (action === "verifyOtp") return verifyOtp_(p);
   if (action === "register") return register_(p);
-  if (action === "rsvp") return rsvp_(p);
-  if (action === "adminLookup") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return adminLookup_(p.passId);
+  if (action === "holderUse") return holderUse_(p);
+  if (action === "listBenefits") return ok_({ privileges: publicPrivs_() });
+
+  var staff = staffByPin_(p.pin);
+  if (!staff) return fail_("Wrong PIN", "auth");
+  if (action === "staffLogin" || (action === "lookup" && p.passId === "__pin_check__")) {
+    return ok_({ verified: true, name: staff.name, role: staff.role });
   }
-  if (action === "adminRedeem") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return adminRedeem_(p);
-  }
-  if (action === "adminUpdate") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return adminUpdate_(p);
-  }
-  if (action === "issueBatch") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return issueBatch_(p);
-  }
-  if (action === "adminAssign") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return adminAssign_(p);
-  }
-  if (action === "listBatches") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return listBatches_();
-  }
-  if (action === "listPasses") {
-    if (!pinOk_(p.pin)) return fail_("Wrong admin PIN", "auth");
-    return listPasses_();
-  }
+  if (action === "lookup") return lookup_(p.passId, staff);
+  if (action === "setPrivilege") return setPrivilege_(p, staff);
+
+  if (staff.role !== "admin") return fail_("Admin PIN required", "forbidden");
+  if (action === "assign") return assign_(p, staff);
+  if (action === "adminUpdate") return adminUpdate_(p, staff);
+  if (action === "setStatus") return setStatus_(p, staff);
+  if (action === "mint") return mint_(p, staff);
+  if (action === "listBatches") return listBatches_();
+  if (action === "listPasses") return listPasses_();
   return fail_("Unknown action", "unknown");
 }
 
-function pick_(row, names) {
-  var i;
-  for (i = 0; i < names.length; i++) {
-    if (row[names[i]] != null && String(row[names[i]]).trim() !== "") {
-      return row[names[i]];
-    }
-  }
-  var keys = Object.keys(row);
-  for (i = 0; i < names.length; i++) {
-    var want = String(names[i]).toLowerCase();
-    for (var k = 0; k < keys.length; k++) {
-      if (
-        String(keys[k]).toLowerCase() === want &&
-        String(row[keys[k]]).trim() !== ""
-      ) {
-        return row[keys[k]];
-      }
-    }
-  }
-  return "";
-}
-
-function fmtDate_(v) {
-  if (!v) return "";
-  return Utilities.formatDate(new Date(v), Session.getScriptTimeZone(), "yyyy-MM-dd");
-}
-
-/**
- * Catalog from events tab (row 10 headers / row 11+ data).
- * Memoized per execution — getPass_/enrich_/benefits_ each call this, and
- * without caching that meant re-reading the events sheet 2-3x per request.
- */
-var EVENT_CATALOG_CACHE_ = null;
-function eventCatalog_() {
-  if (EVENT_CATALOG_CACHE_) return EVENT_CATALOG_CACHE_;
-  EVENT_CATALOG_CACHE_ = eventCatalogUncached_();
-  return EVENT_CATALOG_CACHE_;
-}
-
-function eventCatalogUncached_() {
-  var rows;
-  try {
-    rows = rows_(EVENTS);
-  } catch (err) {
-    rows = null;
-  }
-  if (!rows || !rows.length) {
-    return FALLBACK_EVENT_CODES.map(function (code, idx) {
-      return {
-        id: code,
-        title: "Param Event 0" + (idx + 1),
-        blurb: "40% discount",
-        date: "",
-        link: "",
-        kind: "event",
-        redeemBy: "audience",
-      };
-    });
-  }
-  var out = [];
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    var title = String(pick_(r, ["Event List", "event list", "title", "name"])).trim();
-    var code = String(pick_(r, ["Event Code", "event code", "code", "id"])).trim();
-    if (!code && title) code = "event_" + ("0" + (out.length + 1)).slice(-2);
-    if (!code) continue;
-    if (!title) title = code;
-    var dateRaw = pick_(r, ["Event Date", "event date", "date"]);
-    var date = dateRaw ? fmtDate_(dateRaw) || String(dateRaw).trim() : "";
-    var link = String(pick_(r, ["Event link", "event link", "link", "url"])).trim();
-    var blurb = date ? "40% discount · " + date : "40% discount";
-    out.push({
-      id: code,
-      title: title,
-      blurb: blurb,
-      date: date,
-      link: link,
-      kind: "event",
-      redeemBy: "audience",
-    });
-  }
-  return out.length
-    ? out
-    : FALLBACK_EVENT_CODES.map(function (code, idx) {
-        return {
-          id: code,
-          title: "Param Event 0" + (idx + 1),
-          blurb: "40% discount",
-          date: "",
-          link: "",
-          kind: "event",
-          redeemBy: "audience",
-        };
-      });
-}
-
-function eventCodes_() {
-  return eventCatalog_().map(function (e) {
-    return e.id;
-  });
-}
-
-function slotCols_() {
-  return VENUE_COLS.concat(eventCodes_());
-}
-
-function isAudienceSlot_(benefitId) {
-  var codes = eventCodes_();
-  for (var i = 0; i < codes.length; i++) {
-    if (codes[i] === benefitId) return true;
-  }
-  return false;
-}
-
-function benefits_() {
-  return [
-    {
-      id: "parsec_jayanagar",
-      title: "Parsec · Jayanagar",
-      blurb: "Free entry",
-      kind: "venue",
-      redeemBy: "admin",
-    },
-    {
-      id: "whitefield_40",
-      title: "Whitefield",
-      blurb: "40% discount",
-      kind: "venue",
-      redeemBy: "admin",
-    },
-  ].concat(eventCatalog_());
-}
-
-function ss_() {
-  return SpreadsheetApp.getActiveSpreadsheet();
-}
-/** Resolve tab by exact name, then case-insensitive match. */
-function sheet_(n) {
-  var ss = ss_();
-  var sh = ss.getSheetByName(n);
-  if (sh) return sh;
-  var want = String(n).toLowerCase();
-  var all = ss.getSheets();
-  for (var i = 0; i < all.length; i++) {
-    if (String(all[i].getName()).toLowerCase() === want) return all[i];
-  }
-  throw new Error("Missing tab: " + n);
-}
-
-function headerRowFor_(name) {
-  var n = String(name).toLowerCase();
-  if (n === "passes" || n === "events") return HEADER_ROW_10;
-  return REDEMPTIONS_HEADER_ROW;
-}
-
-function rows_(name) {
-  var sh = sheet_(name);
-  var headerRow = headerRowFor_(name);
-  var lastRow = sh.getLastRow();
-  var lastCol = sh.getLastColumn();
-  if (lastCol < 1 || lastRow < headerRow) return [];
-  var headers = sh
-    .getRange(headerRow, 1, headerRow, lastCol)
-    .getValues()[0]
-    .map(function (h) {
-      return String(h).trim();
-    });
-  var out = [];
-  if (lastRow < headerRow + 1) return out;
-  var data = sh.getRange(headerRow + 1, 1, lastRow, lastCol).getValues();
-  for (var i = 0; i < data.length; i++) {
-    var empty = true;
-    for (var c0 = 0; c0 < data[i].length; c0++) {
-      if (data[i][c0] !== "" && data[i][c0] != null) {
-        empty = false;
-        break;
-      }
-    }
-    if (empty) continue;
-    var o = { __row: headerRow + 1 + i };
-    for (var c = 0; c < headers.length; c++) o[headers[c]] = data[i][c];
-    out.push(o);
-  }
-  return out;
-}
-
-function headers_(sh, headerRow) {
-  headerRow = headerRow || 1;
-  var lastCol = Math.max(1, sh.getLastColumn());
-  var h = sh.getRange(headerRow, 1, headerRow, lastCol).getValues()[0];
-  var map = {};
-  for (var i = 0; i < h.length; i++) {
-    var key = String(h[i]).trim();
-    if (key) map[key] = i + 1;
-  }
-  return map;
-}
-
-function passesHeaders_(sh) {
-  return headers_(sh, PASSES_HEADER_ROW);
-}
-
-/** Next empty pass row (never above PASSES_DATA_START). */
-function nextPassRow_(sh) {
-  var last = sh.getLastRow();
-  if (last < PASSES_DATA_START) return PASSES_DATA_START;
-  return last + 1;
-}
-
-function set_(sh, row, headers, key, val) {
-  if (!headers[key]) throw new Error("Missing column " + key);
-  sh.getRange(row, headers[key]).setValue(val);
-}
-
-/**
- * Locate one pass row by passId WITHOUT reading every column of every row —
- * each row carries several KB of inline QR SVG text, so pulling the full
- * sheet (rows_(PASSES)) just to match one passId got slower and slower as
- * the sheet grew. Instead: read only the passId column across all rows to
- * find the row number, then fetch just that single row's full data.
- */
-function findPass_(passId) {
-  var id = String(passId || "").trim().toUpperCase();
-  var sh = sheet_(PASSES);
-  var headerRow = PASSES_HEADER_ROW;
-  var lastRow = sh.getLastRow();
-  var lastCol = sh.getLastColumn();
-  if (lastCol < 1 || lastRow < headerRow + 1) return null;
-  var headerNames = sh
-    .getRange(headerRow, 1, 1, lastCol)
-    .getValues()[0]
-    .map(function (h) {
-      return String(h).trim();
-    });
-  var passIdCol = headerNames.indexOf("passId") + 1;
-  if (!passIdCol) return null;
-  var ids = sh.getRange(headerRow + 1, passIdCol, lastRow - headerRow, 1).getValues();
-  var rowNum = -1;
-  for (var i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]).trim().toUpperCase() === id) {
-      rowNum = headerRow + 1 + i;
-      break;
-    }
-  }
-  if (rowNum < 0) return null;
-  var rowVals = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
-  var o = { __row: rowNum };
-  for (var c = 0; c < headerNames.length; c++) o[headerNames[c]] = rowVals[c];
-  return o;
-}
-
-function enrich_(row) {
-  var slots = {};
-  slotCols_().forEach(function (k) {
-    slots[k] = String(row[k] || "open").toLowerCase() === "redeemed" ? "redeemed" : "open";
-  });
-  var openCount = 0;
-  Object.keys(slots).forEach(function (k) {
-    if (slots[k] === "open") openCount++;
-  });
-  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  var validUntil = fmtDate_(row.validUntil);
-  var expired = validUntil && validUntil < today;
-  var status = String(row.status || "unregistered");
-  var exhausted = openCount === 0 && status !== "unregistered";
-  var effective = status;
-  var reason = "";
-  if (expired) {
-    effective = "invalid";
-    reason = "valid_date_passed";
-  } else if (exhausted) {
-    effective = "invalid";
-    reason = "exhausted";
-  }
-  return {
-    passId: String(row.passId),
-    status: status,
-    name: String(row.name || ""),
-    phone: String(row.phone || ""),
-    email: String(row.email || ""),
-    generatedAt: fmtDate_(row.generatedAt),
-    validUntil: validUntil,
-    notes: String(row.notes || ""),
-    registeredAt: String(row.registeredAt || ""),
-    qrUrl: String(row.qrUrl || ""),
-    // qrSvg deliberately omitted: nothing in audience.js/admin.js/assign.js
-    // reads it, but it's several KB of raw SVG per row — needless payload on
-    // every single lookup over (often slow) mobile connections. issueBatch_
-    // re-attaches it explicitly for the one place that actually needs it.
-    qrSvgFile: String(row.qrSvgFile || ""),
-    slots: slots,
-    openCount: openCount,
-    effectiveStatus: effective,
-    invalidReason: reason,
-  };
-}
+// ---------------------------------------------------------------- Public (pass holder)
 
 function getPass_(passId) {
   var row = findPass_(passId);
   if (!row) return fail_("Pass not found", "not_found");
-  return ok_({ pass: enrich_(row), benefits: benefits_() });
+  var pass = view_(row);
+  var privs = pass.status === "active" && !pass.invalidReason
+    ? pass.privileges.filter(function (x) { return x.state !== "disabled"; })
+    : [];
+  return ok_({ pass: publicPass_(pass, privs) });
 }
 
 function register_(p) {
-  var row = findPass_(p.passId);
-  if (!row) return fail_("Pass not found", "not_found");
-  var pass = enrich_(row);
-  if (pass.effectiveStatus === "invalid") return fail_("Pass is invalid", "invalid");
-  if (pass.status !== "unregistered") return fail_("Already registered", "already_registered");
-  if (!p.name || !p.phone) return fail_("Name and phone required", "validation");
-  if (otpRequired_(p)) {
-    var gate = assertOtpToken_(p.phone, p.passId, p.otpToken);
-    if (!gate.ok) return gate;
+  var name = String(p.name || "").trim();
+  var phone = String(p.phone || "").trim();
+  if (!name || !phone) return fail_("Name and phone required", "validation");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var row = findPass_(p.passId);
+    if (!row) return fail_("Pass not found", "not_found");
+    var pass = view_(row);
+    if (pass.invalidReason) return fail_(invalidText_(pass.invalidReason), "invalid");
+    if (pass.status !== "unclaimed") return fail_("This pass is already registered", "already_registered");
+    writeCells_(row.__row, {
+      name: name,
+      phone: phone,
+      email: String(p.email || "").trim(),
+      status: "active",
+      registeredAt: new Date(),
+    });
+    log_(pass.passId, "", "registered", name);
+  } finally {
+    lock.releaseLock();
   }
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  set_(sh, row.__row, h, "name", String(p.name).trim());
-  set_(sh, row.__row, h, "phone", String(p.phone).trim());
-  set_(sh, row.__row, h, "email", String(p.email || "").trim());
-  set_(sh, row.__row, h, "status", "active");
-  set_(sh, row.__row, h, "registeredAt", new Date().toISOString());
-  clearOtpKeys_(p.phone, p.passId);
   return getPass_(p.passId);
 }
 
-/**
- * OTP provision — enable with Script property OTP_ENABLED=true
- * (and config.js otpEnabled: true). Wire sendOtpSms_ / sendOtpEmail_ later.
- */
-function otpEnforced_() {
-  return PropertiesService.getScriptProperties().getProperty("OTP_ENABLED") === "true";
+function holderUse_(p) {
+  var privId = String(p.privilegeId || p.benefitId || "").trim();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var row = findPass_(p.passId);
+    if (!row) return fail_("Pass not found", "not_found");
+    var pass = view_(row);
+    if (pass.invalidReason) return fail_(invalidText_(pass.invalidReason), "invalid");
+    if (pass.status !== "active") return fail_("Register this pass first", "not_registered");
+    var priv = pass.privileges.filter(function (x) { return x.id === privId; })[0];
+    if (!priv) return fail_("Unknown privilege", "bad_privilege");
+    if (priv.redeemBy !== "holder") return fail_("Show this pass at the desk — staff will mark it.", "desk_only");
+    if (priv.state !== "enabled") return fail_("Already used", "already_used");
+    writeCells_(row.__row, obj_(privId, "used"));
+    log_(pass.passId, privId, "used", "holder");
+  } finally {
+    lock.releaseLock();
+  }
+  var res = getPass_(p.passId);
+  if (res.ok) res.data.message = "Confirmed. Show this screen at the entrance.";
+  return res;
 }
 
-function otpRequired_(p) {
-  return otpEnforced_() || !!p.requireOtp;
+function publicPass_(pass, privs) {
+  return {
+    passId: pass.passId,
+    status: pass.status,
+    type: pass.type,
+    name: pass.name,
+    validUntil: pass.validUntil,
+    invalidReason: pass.invalidReason,
+    effectiveStatus: pass.invalidReason ? "invalid" : pass.status,
+    privileges: privs.map(function (x) {
+      var showUrl = (x.kind === "link" || x.kind === "file") && x.state === "enabled";
+      return {
+        id: x.id,
+        title: x.title,
+        kind: x.kind,
+        detail: x.detail,
+        url: showUrl ? x.url : "",
+        redeemBy: x.redeemBy,
+        state: x.state,
+      };
+    }),
+  };
 }
 
-function otpDevMode_() {
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty("OTP_DEV_MODE") === "true") return true;
-  // Until an SMS provider is wired, always return a dev code so the flow is testable.
-  return true;
-}
+// ---------------------------------------------------------------- Staff
 
-function otpCacheKey_(phone, passId) {
-  return "otp:" + String(passId || "").toUpperCase() + ":" + String(phone || "").trim();
-}
-
-function otpTokenKey_(phone, passId) {
-  return "otpTok:" + String(passId || "").toUpperCase() + ":" + String(phone || "").trim();
-}
-
-function clearOtpKeys_(phone, passId) {
-  var cache = CacheService.getScriptCache();
-  cache.remove(otpCacheKey_(phone, passId));
-  cache.remove(otpTokenKey_(phone, passId));
-}
-
-/** Stub — plug Twilio / MSG91 / etc. Return true if message was sent. */
-function sendOtpSms_(phone, code) {
-  // TODO: wire SMS provider. Example:
-  // UrlFetchApp.fetch(providerUrl, { method: "post", payload: { to: phone, body: "Parivar Pass code: " + code } });
-  return false;
-}
-
-/** Stub — optional email channel. */
-function sendOtpEmail_(email, code) {
-  // TODO: MailApp.sendEmail(email, "Parivar Pass code", "Your code is " + code);
-  return false;
-}
-
-function requestOtp_(p) {
-  var phone = String(p.phone || "").trim();
-  var passId = String(p.passId || "").trim();
-  if (!phone) return fail_("Phone required", "validation");
-  if (!passId) return fail_("Pass ID required", "validation");
+function lookup_(passId, staff) {
   var row = findPass_(passId);
   if (!row) return fail_("Pass not found", "not_found");
-  if (String(row.status || "unregistered") !== "unregistered") {
-    return fail_("Already registered", "already_registered");
+  return ok_({ pass: view_(row), staff: { name: staff.name, role: staff.role } });
+}
+
+function setPrivilege_(p, staff) {
+  var privId = String(p.privilegeId || p.benefitId || "").trim();
+  var state = String(p.state || "used").trim().toLowerCase();
+  if (["enabled", "used", "disabled"].indexOf(state) < 0) return fail_("Bad state", "validation");
+  if (staff.role !== "admin" && state !== "used") {
+    return fail_("Only admins can enable or disable privileges", "forbidden");
   }
-  var code = String(100000 + Math.floor(Math.random() * 900000));
-  CacheService.getScriptCache().put(otpCacheKey_(phone, passId), code, 300);
-  var channel = String(p.channel || "sms").toLowerCase();
-  var sent = false;
-  if (channel === "email") {
-    sent = sendOtpEmail_(String(p.email || "").trim(), code);
-  } else {
-    sent = sendOtpSms_(phone, code);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var row = findPass_(p.passId);
+    if (!row) return fail_("Pass not found", "not_found");
+    var pass = view_(row);
+    var priv = pass.privileges.filter(function (x) { return x.id === privId; })[0];
+    if (!priv) return fail_("Unknown privilege", "bad_privilege");
+    if (state === "used" && staff.role !== "admin") {
+      if (pass.invalidReason) return fail_(invalidText_(pass.invalidReason), "invalid");
+      if (pass.status !== "active") return fail_("Pass not registered yet", "not_registered");
+      if (priv.state === "used") return fail_("Already used", "already_used");
+      if (priv.state === "disabled") return fail_("This privilege is disabled on this pass", "disabled");
+    }
+    writeCells_(row.__row, obj_(privId, state));
+    log_(pass.passId, privId, state, staff.name);
+  } finally {
+    lock.releaseLock();
   }
-  var data = { sent: !!sent, channel: channel, expiresInSec: 300 };
-  if (otpDevMode_()) data.devCode = code;
-  return ok_(data);
+  return lookup_(p.passId, staff);
 }
 
-function verifyOtp_(p) {
-  var phone = String(p.phone || "").trim();
-  var passId = String(p.passId || "").trim();
-  var code = String(p.code || "").trim();
-  if (!phone || !passId || !code) return fail_("Phone, pass, and code required", "validation");
-  var expected = CacheService.getScriptCache().get(otpCacheKey_(phone, passId));
-  if (!expected || expected !== code) return fail_("Invalid or expired code", "otp");
-  var token = Utilities.getUuid();
-  CacheService.getScriptCache().put(otpTokenKey_(phone, passId), token, 600);
-  CacheService.getScriptCache().remove(otpCacheKey_(phone, passId));
-  return ok_({ otpToken: token });
+// ---------------------------------------------------------------- Admin
+
+function assign_(p, staff) {
+  var name = String(p.name || "").trim();
+  if (!name) return fail_("Name required", "validation");
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var row = p.passId ? findPass_(p.passId) : nextUnclaimed_();
+    if (!row) {
+      return fail_(p.passId ? "Pass not found" : "No unclaimed passes left", p.passId ? "not_found" : "none_available");
+    }
+    var pass = view_(row);
+    if (pass.invalidReason) return fail_(invalidText_(pass.invalidReason), "invalid");
+    if (pass.status !== "unclaimed") return fail_("Pass already registered", "already_registered");
+    var cells = {
+      name: name,
+      phone: String(p.phone || "").trim(),
+      email: String(p.email || "").trim(),
+      status: "active",
+      registeredAt: new Date(),
+    };
+    if (p.type) cells.type = String(p.type).trim();
+    if (p.notes) cells.notes = String(p.notes).trim();
+    writeCells_(row.__row, cells);
+    log_(pass.passId, "", "assigned", staff.name);
+    return ok_({ pass: view_(findPass_(pass.passId)) });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
-function assertOtpToken_(phone, passId, token) {
-  token = String(token || "").trim();
-  if (!token) return fail_("Phone verification required", "otp");
-  var expected = CacheService.getScriptCache().get(otpTokenKey_(phone, passId));
-  if (!expected || expected !== token) return fail_("Phone verification expired — request a new code", "otp");
-  return ok_({});
-}
-
-function rsvp_(p) {
+function adminUpdate_(p, staff) {
   var row = findPass_(p.passId);
   if (!row) return fail_("Pass not found", "not_found");
-  var pass = enrich_(row);
-  if (pass.effectiveStatus === "invalid") return fail_("Pass invalid", "invalid");
-  if (pass.status !== "active") return fail_("Register first", "not_registered");
-  if (!isAudienceSlot_(p.benefitId)) {
-    return fail_("Show pass at venue desk for staff to redeem.", "desk_only");
+  var cells = {};
+  ["name", "phone", "email", "notes", "type"].forEach(function (f) {
+    if (p[f] != null && p[f] !== "") cells[f] = String(p[f]).trim();
+  });
+  writeCells_(row.__row, cells);
+  log_(String(row.passId), "", "updated", staff.name);
+  return lookup_(p.passId, staff);
+}
+
+function setStatus_(p, staff) {
+  var status = String(p.status || "").trim().toLowerCase();
+  if (["unclaimed", "active", "void"].indexOf(status) < 0) return fail_("Bad status", "validation");
+  var row = findPass_(p.passId);
+  if (!row) return fail_("Pass not found", "not_found");
+  writeCells_(row.__row, { status: status });
+  log_(String(row.passId), "", "status:" + status, staff.name);
+  return lookup_(p.passId, staff);
+}
+
+function mint_(p, staff) {
+  var qty = Math.max(1, Math.min(210, Number(p.quantity) || 1));
+  var tz = Session.getScriptTimeZone();
+  var gen = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  var d = new Date();
+  d.setMonth(d.getMonth() + 6);
+  var until = Utilities.formatDate(d, tz, "yyyy-MM-dd");
+  var batchId = "BAT-" + Utilities.getUuid().replace(/-/g, "").slice(0, 8).toUpperCase();
+  var type = String(p.type || "").trim();
+  var notes = String(p.notes || "").trim();
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  var created = [];
+  try {
+    var sh = sheet_(PASSES);
+    var hdr = passHeaders_(true);
+    var width = hdr.names.length;
+    var startRow = Math.max(sh.getLastRow() + 1, PASS_DATA_START);
+    var values = [];
+    for (var i = 0; i < qty; i++) {
+      var id = "PV2-" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
+      var rec = {
+        passId: id,
+        qrUrl: audienceUrl_(id),
+        status: "unclaimed",
+        type: type,
+        batchId: batchId,
+        generatedAt: gen,
+        validUntil: until,
+        notes: notes,
+      };
+      var line = [];
+      for (var c = 0; c < width; c++) {
+        var key = hdr.names[c];
+        line.push(rec[key] != null ? rec[key] : "");
+      }
+      values.push(line);
+      created.push({ passId: id, status: "unclaimed", type: type, generatedAt: gen, validUntil: until, qrUrl: rec.qrUrl });
+    }
+    sh.getRange(startRow, 1, qty, width).setValues(values);
+    log_(batchId, "", "minted " + qty, staff.name);
+  } finally {
+    lock.releaseLock();
   }
-  if (pass.slots[p.benefitId] !== "open") return fail_("Already used", "already_used");
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  // Source of truth: event_01… / venue column on this pass row
-  set_(sh, row.__row, h, p.benefitId, "redeemed");
-  logRedemptionOptional_(pass.passId, p.benefitId, "audience", pass.name);
-  var updated = getPass_(p.passId);
   return ok_({
-    pass: updated.data.pass,
-    benefit: benefits_().filter(function (b) {
-      return b.id === p.benefitId;
-    })[0],
-    message: "RSVP recorded. Show this at the registration desk.",
+    passes: created,
+    generatedAt: gen,
+    validUntil: until,
+    quantity: qty,
+    batchId: batchId,
+    vault: null,
   });
 }
 
-function adminLookup_(passId) {
-  if (String(passId || "") === "__pin_check__") {
-    return ok_({ verified: true });
-  }
-  var g = getPass_(passId);
-  if (!g.ok) return g;
-  // History from passes columns (event_01… / venues = redeemed), not a separate tab
-  var hist = [];
-  var pass = g.data.pass;
-  var slots = pass.slots || {};
-  Object.keys(slots).forEach(function (id) {
-    if (slots[id] === "redeemed") {
-      hist.push({
-        at: "",
-        passId: pass.passId,
-        benefitId: id,
-        by: "",
-        name: pass.name || "",
+function listPasses_() {
+  var sh = sheet_(PASSES);
+  var hdr = passHeaders_();
+  var last = sh.getLastRow();
+  if (last < PASS_DATA_START) return ok_({ passes: [], count: 0 });
+  var data = sh.getRange(PASS_DATA_START, 1, last - PASS_DATA_START + 1, hdr.names.length).getValues();
+  var out = [];
+  data.forEach(function (line, i) {
+    var row = rowObj_(hdr.names, line, PASS_DATA_START + i);
+    if (!row.passId) return;
+    var v = view_(row);
+    out.push({
+      passId: v.passId,
+      status: v.status,
+      type: v.type,
+      name: v.name,
+      phone: v.phone,
+      generatedAt: v.generatedAt,
+      validUntil: v.validUntil,
+      batchId: v.batchId,
+      effectiveStatus: v.invalidReason ? "invalid" : v.status,
+    });
+  });
+  return ok_({ passes: out, count: out.length });
+}
+
+function listBatches_() {
+  var res = listPasses_();
+  var batches = {};
+  res.data.passes.forEach(function (p) {
+    var key = p.batchId || "(none)";
+    if (!batches[key]) batches[key] = { batchId: key, createdAt: p.generatedAt, total: 0, unclaimed: 0 };
+    batches[key].total++;
+    if (p.status === "unclaimed") batches[key].unclaimed++;
+  });
+  var list = Object.keys(batches).map(function (k) { return batches[k]; });
+  list.sort(function (a, b) { return String(b.createdAt).localeCompare(String(a.createdAt)); });
+  return ok_({ batches: list, vaultUrl: "" });
+}
+
+// ---------------------------------------------------------------- Pass model
+
+/** One pass row → normalized view with its privileges resolved against the catalog. */
+function view_(row) {
+  var tz = Session.getScriptTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  var validUntil = fmtDate_(row.validUntil);
+  var status = normStatus_(row.status);
+  var reason = "";
+  if (status === "void") reason = "void";
+  else if (validUntil && validUntil < today) reason = "expired";
+  var privileges = privileges_().filter(function (x) { return x.active; }).map(function (x) {
+    return {
+      id: x.id,
+      title: x.title,
+      kind: x.kind,
+      detail: x.detail,
+      url: x.url,
+      redeemBy: x.redeemBy,
+      state: normState_(row[x.id], x.defaultState),
+    };
+  });
+  return {
+    passId: String(row.passId),
+    row: row.__row,
+    status: status,
+    type: String(row.type || ""),
+    name: String(row.name || ""),
+    phone: String(row.phone || ""),
+    email: String(row.email || ""),
+    notes: String(row.notes || ""),
+    batchId: String(row.batchId || ""),
+    generatedAt: fmtDate_(row.generatedAt),
+    validUntil: validUntil,
+    registeredAt: fmtDate_(row.registeredAt),
+    invalidReason: reason,
+    privileges: privileges,
+  };
+}
+
+function normStatus_(v) {
+  var s = String(v || "").trim().toLowerCase();
+  if (s === "active") return "active";
+  if (s === "void" || s === "cancelled" || s === "canceled") return "void";
+  return "unclaimed";
+}
+
+function normState_(v, def) {
+  var s = String(v == null ? "" : v).trim().toLowerCase();
+  if (!s) return def === "disabled" ? "disabled" : "enabled";
+  if (s === "used" || s === "redeemed" || s === "done" || s === "completed") return "used";
+  if (s === "disabled" || s === "off" || s === "no" || s === "false") return "disabled";
+  return "enabled";
+}
+
+function invalidText_(reason) {
+  if (reason === "void") return "This pass has been cancelled";
+  if (reason === "expired") return "This pass has expired";
+  return "This pass is not valid";
+}
+
+// ---------------------------------------------------------------- Catalogs (cached)
+
+function privileges_() {
+  return cached_("privs_v3", function () {
+    var sh = ss_().getSheetByName(PRIVS);
+    if (!sh || sh.getLastRow() < 2) return [];
+    var vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getValues();
+    var head = vals[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var out = [];
+    for (var i = 1; i < vals.length; i++) {
+      var r = {};
+      head.forEach(function (h, c) { r[h] = vals[i][c]; });
+      var id = String(r.id || "").trim();
+      if (!id) continue;
+      var kind = String(r.kind || "free").trim().toLowerCase();
+      var redeemBy = String(r.redeemby || "").trim().toLowerCase();
+      if (!redeemBy) redeemBy = kind === "link" || kind === "file" ? "none" : "staff";
+      out.push({
+        id: id,
+        title: String(r.title || id).trim(),
+        kind: kind,
+        detail: fmtCell_(r.detail),
+        url: String(r.url || "").trim(),
+        redeemBy: redeemBy,
+        defaultState: String(r["default"] || "enabled").trim().toLowerCase() === "disabled" ? "disabled" : "enabled",
+        active: String(r.active).trim().toUpperCase() !== "FALSE",
       });
     }
-  });
-  return ok_({ pass: pass, redemptions: hist, benefits: benefits_() });
-}
-
-function adminRedeem_(p) {
-  var row = findPass_(p.passId);
-  if (!row) return fail_("Pass not found", "not_found");
-  var pass = enrich_(row);
-  if (pass.invalidReason === "valid_date_passed") return fail_("Pass expired", "invalid");
-  if (pass.status === "unregistered") return fail_("Not registered", "not_registered");
-  if (pass.slots[p.benefitId] !== "open") return fail_("Already disabled", "already_used");
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  set_(sh, row.__row, h, p.benefitId, "redeemed");
-  logRedemptionOptional_(pass.passId, p.benefitId, "admin", pass.name);
-  var updated = getPass_(p.passId);
-  return ok_({
-    pass: updated.data.pass,
-    message: "Privilege disabled for further use.",
+    return out;
   });
 }
 
-/** Optional extra log tab — ignore if missing. Pass columns are authoritative. */
-function logRedemptionOptional_(passId, benefitId, by, name) {
-  try {
-    sheet_(REDEMPTIONS).appendRow([
-      new Date().toISOString(),
-      passId,
-      benefitId,
-      by,
-      name || "",
-    ]);
-  } catch (err) {
-    /* Redemptions tab not required */
-  }
+function publicPrivs_() {
+  return privileges_().filter(function (x) { return x.active; }).map(function (x) {
+    return { id: x.id, title: x.title, kind: x.kind, detail: x.detail, redeemBy: x.redeemBy };
+  });
 }
 
-/**
- * Find the first still-unregistered, non-expired pass row in sheet order.
- * Used by adminAssign_ when the caller doesn't pin a specific passId.
- */
-function nextUnregisteredRow_() {
-  var rows = rows_(PASSES);
-  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
-    if (String(r.status || "unregistered") !== "unregistered") continue;
-    var until = fmtDate_(r.validUntil);
-    if (until && until < today) continue;
-    return r;
+function staffList_() {
+  return cached_("staff_v3", function () {
+    var sh = ss_().getSheetByName(STAFF);
+    if (!sh || sh.getLastRow() < 2) return [];
+    var vals = sh.getRange(1, 1, sh.getLastRow(), sh.getLastColumn()).getDisplayValues();
+    var head = vals[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    var out = [];
+    for (var i = 1; i < vals.length; i++) {
+      var r = {};
+      head.forEach(function (h, c) { r[h] = vals[i][c]; });
+      var pin = String(r.pin || "").trim();
+      if (!pin) continue;
+      if (String(r.active).trim().toUpperCase() === "FALSE") continue;
+      out.push({
+        name: String(r.name || "Staff").trim(),
+        pin: pin,
+        role: String(r.role || "checker").trim().toLowerCase() === "admin" ? "admin" : "checker",
+      });
+    }
+    return out;
+  });
+}
+
+function staffByPin_(pin) {
+  pin = String(pin || "").trim();
+  if (!pin) return null;
+  var list = staffList_();
+  if (!list.length && pin === LEGACY_ADMIN_PIN) return { name: "Admin", role: "admin" };
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].pin === pin) return { name: list[i].name, role: list[i].role };
   }
   return null;
 }
 
-/**
- * Bulk/staff assignment: takes an existing unregistered pass (auto-picked in
- * sheet order, or a specific passId) and fills in the bearer's name/phone/
- * email as if they had registered themselves — skips OTP, sets status
- * "active" and registeredAt now. Used for handing out passes already
- * printed/minted to specific people after the fact.
- */
-function adminAssign_(p) {
-  var row = p.passId ? findPass_(p.passId) : nextUnregisteredRow_();
-  if (!row) {
-    return fail_(
-      p.passId ? "Pass not found" : "No unregistered passes available",
-      p.passId ? "not_found" : "none_available"
-    );
-  }
-  var pass = enrich_(row);
-  if (pass.effectiveStatus === "invalid") {
-    return fail_(
-      pass.invalidReason === "valid_date_passed" ? "Pass expired" : "Pass exhausted",
-      "invalid"
-    );
-  }
-  if (pass.status !== "unregistered") return fail_("Pass already registered", "already_registered");
-  if (!p.name) return fail_("Name required", "validation");
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  set_(sh, row.__row, h, "name", String(p.name).trim());
-  set_(sh, row.__row, h, "phone", String(p.phone || "").trim());
-  set_(sh, row.__row, h, "email", String(p.email || "").trim());
-  if (p.notes) set_(sh, row.__row, h, "notes", String(p.notes).trim());
-  set_(sh, row.__row, h, "status", "active");
-  set_(sh, row.__row, h, "registeredAt", new Date().toISOString());
-  return getPass_(String(row.passId));
+function cached_(key, build) {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(key);
+  if (hit) return JSON.parse(hit);
+  var val = build();
+  cache.put(key, JSON.stringify(val), CACHE_SECONDS);
+  return val;
 }
 
-function adminUpdate_(p) {
-  var row = findPass_(p.passId);
-  if (!row) return fail_("Pass not found", "not_found");
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  ["name", "phone", "email", "notes"].forEach(function (f) {
-    if (p[f] != null && p[f] !== "") set_(sh, row.__row, h, f, String(p[f]).trim());
-  });
-  return getPass_(p.passId);
+function clearParivarCache() {
+  CacheService.getScriptCache().removeAll(["privs_v3", "staff_v3", "passHdr_v3", "setup_v3"]);
 }
+
+/** Simple trigger: edits to privileges/staff (or the passes header row) apply immediately. */
+function onEdit(e) {
+  try {
+    var sh = e.range.getSheet();
+    var n = sh.getName();
+    if (n === PRIVS || n === STAFF || (n === PASSES && e.range.getRow() <= PASS_HEADER_ROW)) {
+      clearParivarCache();
+    }
+  } catch (err) {
+    /* never block an edit */
+  }
+}
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Parivar Pass")
+    .addItem("Set up / sync tabs and columns", "setupParivar")
+    .addItem("Refresh app cache", "clearParivarCache")
+    .addToUi();
+}
+
+// ---------------------------------------------------------------- Sheet access
+
+function ss_() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function sheet_(name) {
+  var sh = ss_().getSheetByName(name);
+  if (!sh) throw new Error("Missing tab: " + name);
+  return sh;
+}
+
+/** Header row of passes → {names:[...], index:{name: col}} (cached). */
+function passHeaders_(fresh) {
+  var build = function () {
+    var sh = sheet_(PASSES);
+    var lastCol = Math.max(1, sh.getLastColumn());
+    var names = sh.getRange(PASS_HEADER_ROW, 1, 1, lastCol).getValues()[0].map(function (h) {
+      return String(h).trim();
+    });
+    while (names.length && !names[names.length - 1]) names.pop();
+    var index = {};
+    names.forEach(function (n, i) { if (n) index[n] = i + 1; });
+    return { names: names, index: index };
+  };
+  if (fresh) {
+    var v = build();
+    CacheService.getScriptCache().put("passHdr_v3", JSON.stringify(v), CACHE_SECONDS);
+    return v;
+  }
+  return cached_("passHdr_v3", build);
+}
+
+/** Reads only the passId column to locate the row, then just that one row. */
+function findPass_(passId) {
+  var id = String(passId || "").trim().toUpperCase();
+  if (!id) return null;
+  var sh = sheet_(PASSES);
+  var hdr = passHeaders_();
+  var idCol = hdr.index.passId;
+  if (!idCol) throw new Error("passes tab has no passId column on row " + PASS_HEADER_ROW);
+  var last = sh.getLastRow();
+  if (last < PASS_DATA_START) return null;
+  var ids = sh.getRange(PASS_DATA_START, idCol, last - PASS_DATA_START + 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim().toUpperCase() === id) {
+      var rowNum = PASS_DATA_START + i;
+      var line = sh.getRange(rowNum, 1, 1, hdr.names.length).getValues()[0];
+      return rowObj_(hdr.names, line, rowNum);
+    }
+  }
+  return null;
+}
+
+function nextUnclaimed_() {
+  var sh = sheet_(PASSES);
+  var hdr = passHeaders_();
+  var last = sh.getLastRow();
+  if (last < PASS_DATA_START) return null;
+  var tz = Session.getScriptTimeZone();
+  var today = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd");
+  var cols = ["passId", "status", "validUntil"].map(function (n) { return hdr.index[n]; });
+  var n = last - PASS_DATA_START + 1;
+  var colVals = cols.map(function (c) {
+    return c ? sh.getRange(PASS_DATA_START, c, n, 1).getValues() : null;
+  });
+  for (var i = 0; i < n; i++) {
+    var id = colVals[0][i][0];
+    if (!id) continue;
+    if (normStatus_(colVals[1] ? colVals[1][i][0] : "") !== "unclaimed") continue;
+    var until = colVals[2] ? fmtDate_(colVals[2][i][0]) : "";
+    if (until && until < today) continue;
+    return findPass_(id);
+  }
+  return null;
+}
+
+function rowObj_(names, line, rowNum) {
+  var o = { __row: rowNum };
+  names.forEach(function (n, c) { if (n) o[n] = line[c]; });
+  return o;
+}
+
+/** Write several named cells on one pass row. Missing columns are created. */
+function writeCells_(rowNum, cells) {
+  var sh = sheet_(PASSES);
+  var hdr = passHeaders_();
+  var keys = Object.keys(cells);
+  var missing = keys.filter(function (k) { return !hdr.index[k]; });
+  if (missing.length) {
+    missing.forEach(function (k) { ensurePassColumn_(k); });
+    hdr = passHeaders_(true);
+  }
+  keys.forEach(function (k) {
+    sh.getRange(rowNum, hdr.index[k]).setValue(cells[k]);
+  });
+}
+
+function ensurePassColumn_(name) {
+  var hdr = passHeaders_(true);
+  if (hdr.index[name]) return;
+  var sh = sheet_(PASSES);
+  var col = hdr.names.length + 1;
+  if (sh.getMaxColumns() < col) sh.insertColumnsAfter(sh.getMaxColumns(), col - sh.getMaxColumns());
+  sh.getRange(PASS_HEADER_ROW, col).setValue(name).setFontWeight("bold");
+  passHeaders_(true);
+}
+
+function log_(passId, privilege, action, by) {
+  try {
+    ss_().getSheetByName(LOG).appendRow([new Date(), passId, privilege, action, by]);
+  } catch (err) {
+    /* logging must never break the main action */
+  }
+}
+
+// ---------------------------------------------------------------- Setup / migration
+
+function ensureSetup_() {
+  var cache = CacheService.getScriptCache();
+  if (cache.get("setup_v3")) return;
+  var ss = ss_();
+  if (!ss.getSheetByName(PRIVS) || !ss.getSheetByName(STAFF) || !ss.getSheetByName(LOG)) {
+    setupParivar();
+  }
+  cache.put("setup_v3", "1", 600);
+}
+
+/**
+ * Creates any missing tabs (privileges, staff, log), seeds privileges from the
+ * old event/venue columns, and makes sure every privilege and core field has a
+ * column on the passes tab. Safe to run repeatedly — it never deletes data.
+ */
+function setupParivar() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = ss_();
+
+    var priv = ss.getSheetByName(PRIVS);
+    if (!priv) {
+      priv = ss.insertSheet(PRIVS);
+      priv.getRange(1, 1, 1, PRIV_HEADERS.length).setValues([PRIV_HEADERS]).setFontWeight("bold");
+      var seed = [
+        ["parsec_jayanagar", "Parsec · Jayanagar", "free", "Free entry", "", "staff", "enabled", true],
+        ["whitefield_40", "Whitefield", "discount", "40% off", "", "staff", "enabled", true],
+      ];
+      legacyEvents_().forEach(function (ev) { seed.push(ev); });
+      priv.getRange(2, 1, seed.length, PRIV_HEADERS.length).setValues(seed);
+      priv.setFrozenRows(1);
+    }
+
+    var staff = ss.getSheetByName(STAFF);
+    if (!staff) {
+      staff = ss.insertSheet(STAFF);
+      staff.getRange(1, 1, 1, STAFF_HEADERS.length).setValues([STAFF_HEADERS]).setFontWeight("bold");
+      staff.getRange("B:B").setNumberFormat("@");
+      staff.getRange(2, 1, 1, STAFF_HEADERS.length).setValues([
+        ["Admin", LEGACY_ADMIN_PIN, "admin", true, "Change this PIN"],
+      ]);
+      staff.setFrozenRows(1);
+    }
+
+    if (!ss.getSheetByName(LOG)) {
+      var log = ss.insertSheet(LOG);
+      log.getRange(1, 1, 1, LOG_HEADERS.length).setValues([LOG_HEADERS]).setFontWeight("bold");
+      log.setFrozenRows(1);
+    }
+
+    CacheService.getScriptCache().removeAll(["privs_v3", "staff_v3", "passHdr_v3"]);
+    CORE_COLS.forEach(function (c) { ensurePassColumn_(c); });
+    privileges_().forEach(function (x) { ensurePassColumn_(x.id); });
+    clearParivarCache();
+  } finally {
+    lock.releaseLock();
+  }
+  return "Parivar Pass tabs are set up.";
+}
+
+/** Old "events" tab rows → privilege rows (holder RSVPs them). */
+function legacyEvents_() {
+  var out = [];
+  var sh = ss_().getSheetByName("events");
+  if (sh && sh.getLastRow() > 10) {
+    var vals = sh.getRange(10, 1, sh.getLastRow() - 9, sh.getLastColumn()).getValues();
+    var head = vals[0].map(function (h) { return String(h).trim().toLowerCase(); });
+    for (var i = 1; i < vals.length; i++) {
+      var r = {};
+      head.forEach(function (h, c) { r[h] = vals[i][c]; });
+      var code = String(r["event code"] || "").trim();
+      if (!code) continue;
+      var date = fmtCell_(r["event date"]);
+      out.push([
+        code,
+        String(r["event list"] || code).trim(),
+        "discount",
+        date ? "40% off · " + date : "40% off",
+        String(r["event link"] || "").trim(),
+        "holder",
+        "enabled",
+        true,
+      ]);
+    }
+  }
+  // Any event_* column already on the passes tab must survive the migration,
+  // even if the events tab never listed it — otherwise its data would vanish from the app.
+  var have = {};
+  out.forEach(function (r) { have[r[0]] = true; });
+  var passes = ss_().getSheetByName(PASSES);
+  var cols = passes && passes.getLastColumn()
+    ? passes.getRange(PASS_HEADER_ROW, 1, 1, passes.getLastColumn()).getValues()[0]
+    : [];
+  cols.forEach(function (h) {
+    var id = String(h).trim();
+    if (/^event_\d+$/.test(id) && !have[id]) {
+      have[id] = true;
+      out.push([id, "Param Event " + id.replace("event_", ""), "discount", "40% off", "", "holder", "enabled", true]);
+    }
+  });
+  if (!out.length) {
+    for (var n = 1; n <= 4; n++) {
+      out.push(["event_0" + n, "Param Event 0" + n, "discount", "40% off", "", "holder", "enabled", true]);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- Utils
 
 function audienceUrl_(passId) {
   var base =
     PropertiesService.getScriptProperties().getProperty("PUBLIC_BASE_URL") ||
     "https://p-cult.github.io/parivar-pass/audience.html";
-  base = String(base).trim();
-  var join = base.indexOf("?") >= 0 ? "&" : "?";
-  return base + join + "pass=" + encodeURIComponent(String(passId).trim());
+  return base + (base.indexOf("?") >= 0 ? "&" : "?") + "pass=" + encodeURIComponent(passId);
 }
 
-/** Fetch QR as SVG markup encoding payloadUrl. */
-function fetchQrSvg_(payloadUrl) {
-  var api =
-    "https://api.qrserver.com/v1/create-qr-code/?size=240x240&ecc=M&margin=0&format=svg&data=" +
-    encodeURIComponent(String(payloadUrl));
-  var res = UrlFetchApp.fetch(api, { muteHttpExceptions: true, followRedirects: true });
-  if (res.getResponseCode() !== 200) {
-    throw new Error("QR SVG fetch failed HTTP " + res.getResponseCode());
+function fmtDate_(v) {
+  if (!v) return "";
+  if (Object.prototype.toString.call(v) === "[object Date]") {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd");
   }
-  var svg = res.getContentText();
-  if (!svg || svg.indexOf("<svg") < 0) {
-    throw new Error("QR SVG response was empty or invalid");
-  }
-  return svg;
+  var s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? "" : Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
 }
 
-function qrFolder_() {
-  var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty("QR_FOLDER_ID");
-  if (id) {
-    try {
-      return DriveApp.getFolderById(id);
-    } catch (err) {
-      /* recreate below */
-    }
+function fmtCell_(v) {
+  if (Object.prototype.toString.call(v) === "[object Date]") {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), "d MMM yyyy");
   }
-  var name = "Parivar Pass QR";
-  var it = DriveApp.getFoldersByName(name);
-  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
-  props.setProperty("QR_FOLDER_ID", folder.getId());
-  return folder;
+  return String(v == null ? "" : v).trim();
 }
 
-/** Root Drive folder for minted batch vaults. */
-function vaultRoot_() {
-  var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty("VAULT_FOLDER_ID");
-  if (id) {
-    try {
-      return DriveApp.getFolderById(id);
-    } catch (err) {
-      /* recreate */
-    }
-  }
-  var name = "Parivar Pass Vault";
-  var it = DriveApp.getFoldersByName(name);
-  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(name);
-  props.setProperty("VAULT_FOLDER_ID", folder.getId());
-  return folder;
-}
-
-/**
- * Create/replace Drive file {passId}.svg and return { svg, fileUrl, fileId }.
- * Optional folder overrides default QR folder.
- */
-function storePassQrSvg_(passId, payloadUrl, folder) {
-  var svg = fetchQrSvg_(payloadUrl);
-  folder = folder || qrFolder_();
-  var safe = String(passId).replace(/[^\w.-]+/g, "_") + ".svg";
-  var existing = folder.getFilesByName(safe);
-  while (existing.hasNext()) {
-    existing.next().setTrashed(true);
-  }
-  var file = folder.createFile(safe, svg, "image/svg+xml");
-  try {
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (shareErr) {
-    /* still usable for spreadsheet owner */
-  }
-  return { svg: svg, fileUrl: file.getUrl(), fileId: file.getId() };
-}
-
-function shareFolderAnyone_(folder) {
-  try {
-    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (err) {
-    /* owner access still works */
-  }
-}
-
-function vaultPrintHtml_(batchId, gen, until, notes, created) {
-  var cards = created
-    .map(function (pass) {
-      var svg = pass.qrSvg || "";
-      return (
-        '<article class="card">' +
-        '<div class="qr">' +
-        svg +
-        "</div>" +
-        "<p class=\"id\">" +
-        String(pass.passId) +
-        "</p>" +
-        "<p class=\"meta\">Valid till " +
-        String(pass.validUntil || until) +
-        "</p>" +
-        "</article>"
-      );
-    })
-    .join("\n");
-  return (
-    "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"/>" +
-    "<title>" +
-    batchId +
-    "</title>" +
-    "<style>" +
-    "body{font-family:system-ui,sans-serif;margin:16px;background:#f6f1e8}" +
-    "h1{font-size:1.2rem} .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}" +
-    ".card{background:#fec20e;padding:10px;border-radius:4px}" +
-    ".qr svg{width:100%;height:auto;background:#fffaef;display:block}" +
-    ".id{font-weight:700;font-size:12px;margin:8px 0 0;word-break:break-all}" +
-    ".meta{font-size:11px;margin:4px 0 0}" +
-    "@media print{body{margin:0;background:#fff} .card{-webkit-print-color-adjust:exact;print-color-adjust:exact}}" +
-    "</style></head><body>" +
-    "<h1>Parivar Pass batch " +
-    batchId +
-    "</h1>" +
-    "<p>" +
-    created.length +
-    " passes · generated " +
-    gen +
-    " · valid till " +
-    until +
-    (notes ? " · " + notes : "") +
-    "</p>" +
-    '<p><button onclick="window.print()">Print / Save PDF</button></p>' +
-    '<div class="grid">' +
-    cards +
-    "</div></body></html>"
-  );
-}
-
-function createBatchVault_(batchId, gen, until, notes, created) {
-  var root = vaultRoot_();
-  var folder = root.createFolder(batchId + "_" + gen);
-  shareFolderAnyone_(folder);
-  var manifest = {
-    batchId: batchId,
-    generatedAt: gen,
-    validUntil: until,
-    notes: notes || "",
-    quantity: created.length,
-    passIds: created.map(function (p) {
-      return p.passId;
-    }),
-  };
-  folder.createFile(
-    "batch.json",
-    JSON.stringify(manifest, null, 2),
-    MimeType.PLAIN_TEXT
-  );
-  var html = vaultPrintHtml_(batchId, gen, until, notes, created);
-  var printFile = folder.createFile(batchId + "_print.html", html, MimeType.HTML);
-  try {
-    printFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (e1) {}
-  // Best-effort PDF via Drive conversion of HTML is unreliable; HTML is the vault reprint source.
-  created.forEach(function (pass) {
-    if (!pass.qrSvg) return;
-    var safe = String(pass.passId).replace(/[^\w.-]+/g, "_") + ".svg";
-    try {
-      var f = folder.createFile(safe, pass.qrSvg, "image/svg+xml");
-      f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    } catch (e2) {}
-  });
-  return {
-    batchId: batchId,
-    vaultFolderUrl: folder.getUrl(),
-    vaultFolderId: folder.getId(),
-    printHtmlUrl: printFile.getUrl(),
-  };
-}
-
-function listBatches_() {
-  var root = vaultRoot_();
-  var folders = root.getFolders();
-  var out = [];
-  while (folders.hasNext()) {
-    var f = folders.next();
-    var printUrl = "";
-    var files = f.getFilesByName(f.getName().split("_")[0] + "_print.html");
-    // Prefer any *_print.html
-    var all = f.getFiles();
-    while (all.hasNext()) {
-      var file = all.next();
-      var n = file.getName();
-      if (/_print\.html$/i.test(n)) {
-        printUrl = file.getUrl();
-        break;
-      }
-    }
-    out.push({
-      name: f.getName(),
-      batchId: String(f.getName()).split("_")[0],
-      url: f.getUrl(),
-      id: f.getId(),
-      createdAt: f.getDateCreated() ? f.getDateCreated().toISOString() : "",
-      printHtmlUrl: printUrl,
-    });
-  }
-  out.sort(function (a, b) {
-    return String(b.createdAt).localeCompare(String(a.createdAt));
-  });
-  return ok_({
-    batches: out,
-    vaultUrl: root.getUrl(),
-  });
-}
-
-function listPasses_() {
-  var rows = rows_(PASSES);
-  var slim = rows.map(function (row) {
-    var p = enrich_(row);
-    return {
-      passId: p.passId,
-      status: p.status,
-      name: p.name,
-      phone: p.phone,
-      email: p.email,
-      generatedAt: p.generatedAt,
-      validUntil: p.validUntil,
-      notes: p.notes,
-      qrUrl: p.qrUrl,
-      qrSvgFile: p.qrSvgFile,
-      batchId: String(row.batchId || ""),
-      vaultFolder: String(row.vaultFolder || ""),
-      effectiveStatus: p.effectiveStatus,
-    };
-  });
-  slim.sort(function (a, b) {
-    return String(b.generatedAt).localeCompare(String(a.generatedAt));
-  });
-  return ok_({ passes: slim, count: slim.length });
-}
-
-function issueBatch_(p) {
-  var qty = Math.max(1, Math.min(210, Number(p.quantity) || 1));
-  var gen = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-  var d = new Date();
-  d.setMonth(d.getMonth() + 6);
-  var until = Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
-  var sh = sheet_(PASSES);
-  var h = passesHeaders_(sh);
-  var slots = slotCols_();
-  var required = [
-    "passId",
-    "qrUrl",
-    "qrSvg",
-    "status",
-    "name",
-    "phone",
-    "email",
-    "generatedAt",
-    "validUntil",
-    "notes",
-    "registeredAt",
-  ].concat(slots);
-  for (var r = 0; r < required.length; r++) {
-    if (!h[required[r]]) {
-      throw new Error(
-        "Missing column on passes row " +
-          PASSES_HEADER_ROW +
-          ": " +
-          required[r] +
-          (slots.indexOf(required[r]) >= 0 ? " (must match events!Event Code)" : "")
-      );
-    }
-  }
-  var batchId = "BAT-" + Utilities.getUuid().replace(/-/g, "").slice(0, 8).toUpperCase();
-  var batchFolder = null;
-  try {
-    var root = vaultRoot_();
-    batchFolder = root.createFolder(batchId + "_" + gen);
-    shareFolderAnyone_(batchFolder);
-  } catch (vaultErr) {
-    batchFolder = null;
-  }
-  var created = [];
-  for (var i = 0; i < qty; i++) {
-    var id = "PV2-" + Utilities.getUuid().replace(/-/g, "").slice(0, 10).toUpperCase();
-    var rowNum = nextPassRow_(sh);
-    var url = audienceUrl_(id);
-    var qr = storePassQrSvg_(id, url, batchFolder || qrFolder_());
-    var values = {};
-    values.passId = id;
-    values.qrUrl = url;
-    values.qrSvg = qr.svg;
-    if (h.qrSvgFile) values.qrSvgFile = qr.fileUrl;
-    values.status = "unregistered";
-    values.name = "";
-    values.phone = "";
-    values.email = "";
-    values.generatedAt = gen;
-    values.validUntil = until;
-    values.notes = p.notes || "";
-    values.registeredAt = "";
-    if (h.batchId) values.batchId = batchId;
-    if (h.vaultFolder && batchFolder) values.vaultFolder = batchFolder.getUrl();
-    slots.forEach(function (k) {
-      values[k] = "open";
-    });
-    Object.keys(values).forEach(function (key) {
-      set_(sh, rowNum, h, key, values[key]);
-    });
-    var enriched = enrich_(findPass_(id));
-    enriched.qrSvg = qr.svg;
-    enriched.qrSvgFile = qr.fileUrl;
-    created.push(enriched);
-  }
-  var vault = null;
-  if (batchFolder) {
-    try {
-      var manifest = {
-        batchId: batchId,
-        generatedAt: gen,
-        validUntil: until,
-        notes: p.notes || "",
-        quantity: created.length,
-        passIds: created.map(function (pass) {
-          return pass.passId;
-        }),
-      };
-      batchFolder.createFile(
-        "batch.json",
-        JSON.stringify(manifest, null, 2),
-        MimeType.PLAIN_TEXT
-      );
-      var html = vaultPrintHtml_(batchId, gen, until, p.notes || "", created);
-      var printFile = batchFolder.createFile(
-        batchId + "_print.html",
-        html,
-        MimeType.HTML
-      );
-      try {
-        printFile.setSharing(
-          DriveApp.Access.ANYONE_WITH_LINK,
-          DriveApp.Permission.VIEW
-        );
-      } catch (sharePrint) {}
-      vault = {
-        batchId: batchId,
-        vaultFolderUrl: batchFolder.getUrl(),
-        vaultFolderId: batchFolder.getId(),
-        printHtmlUrl: printFile.getUrl(),
-      };
-    } catch (buildErr) {
-      vault = batchFolder
-        ? {
-            batchId: batchId,
-            vaultFolderUrl: batchFolder.getUrl(),
-            vaultFolderId: batchFolder.getId(),
-            printHtmlUrl: "",
-            warning: String(buildErr),
-          }
-        : null;
-    }
-  }
-  // Strip heavy SVG from API response (still on Sheet / Drive)
-  var light = created.map(function (pass) {
-    return {
-      passId: pass.passId,
-      status: pass.status,
-      name: pass.name,
-      phone: pass.phone,
-      email: pass.email,
-      generatedAt: pass.generatedAt,
-      validUntil: pass.validUntil,
-      notes: pass.notes,
-      registeredAt: pass.registeredAt,
-      qrUrl: pass.qrUrl,
-      qrSvgFile: pass.qrSvgFile,
-      slots: pass.slots,
-      openCount: pass.openCount,
-      effectiveStatus: pass.effectiveStatus,
-      invalidReason: pass.invalidReason,
-    };
-  });
-  return ok_({
-    passes: light,
-    generatedAt: gen,
-    validUntil: until,
-    quantity: qty,
-    batchId: batchId,
-    vault: vault,
-  });
-}
-
-function pinOk_(pin) {
-  // Same PIN as demo / config.js — change here (and config.js) when going stricter.
-  return String(pin || "").trim() === "param2468";
+function obj_(k, v) {
+  var o = {};
+  o[k] = v;
+  return o;
 }
 
 function ok_(data) {
   return { ok: true, data: data };
 }
+
 function fail_(m, c) {
   return { ok: false, error: m, code: c || "error" };
 }
+
 function json_(o) {
-  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(
-    ContentService.MimeType.JSON
-  );
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }

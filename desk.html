@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ticket desk — Parivar Pass</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="topnav">
+      <a href="index.html">← Parivar Pass</a>
+      <a href="admin.html" id="admin-link" class="hidden">Admin</a>
+    </nav>
+    <main>
+      <p class="eyebrow">Staff only</p>
+      <h1>Ticket desk</h1>
+      <p id="status" class="status hidden" role="status"></p>
+
+      <section class="panel" id="login-panel">
+        <h2>Sign in</h2>
+        <label>Your staff PIN <input id="pin" type="password" inputmode="numeric" autocomplete="off" /></label>
+        <div class="btn-row"><button type="button" id="login">Sign in</button></div>
+        <p class="hint">PINs are listed on the <b>staff</b> tab of the Sheet.</p>
+      </section>
+
+      <section class="panel hidden" id="desk-panel">
+        <p class="hint">
+          Signed in as <b id="who"></b> ·
+          <button type="button" class="link" id="logout">Sign out</button>
+        </p>
+        <p class="hint">
+          Scan a pass with this phone's camera — it opens straight into this staff view.
+          Or type the pass ID:
+        </p>
+        <label>Pass ID <input id="pass-input" autocomplete="off" placeholder="PV2-…" /></label>
+        <div class="btn-row"><button type="button" id="lookup">Look up</button></div>
+      </section>
+
+      <section class="hidden" id="staff-panel">
+        <div class="panel">
+          <p class="pass-id" id="s-pass-id"></p>
+          <h2 id="s-name"></h2>
+          <p class="hint" id="s-meta"></p>
+          <div class="btn-row hidden" id="s-admin-actions"></div>
+        </div>
+
+        <div class="panel hidden" id="s-assign">
+          <h2>Assign this pass</h2>
+          <form id="assign-form">
+            <label>Full name <input id="a-name" required /></label>
+            <label>Phone <input id="a-phone" inputmode="tel" /></label>
+            <label>Email <input id="a-email" type="email" /></label>
+            <label>
+              Type
+              <select id="a-type">
+                <option value="customer">Customer</option>
+                <option value="professional">Professional</option>
+              </select>
+            </label>
+            <div class="btn-row"><button type="submit" id="a-submit">Assign</button></div>
+          </form>
+        </div>
+
+        <div id="staff-privs"></div>
+      </section>
+    </main>
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script src="ui.js"></script>
+    <script src="staff.js"></script>
+    <script src="pass-view.js"></script>
+    <script src="staff-panel.js"></script>
+    <script src="desk.js"></script>
+  </body>
+</html>

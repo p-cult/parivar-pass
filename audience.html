@@ -3,33 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Pass holder — Parivar Pass v2</title>
+    <title>Parivar Pass</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="../../core/tokens.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <nav class="topnav">
-      <a href="index.html">← Parivar Pass v2</a>
-    </nav>
     <main>
-      <p class="mode-pill" id="mode-pill"></p>
-      <p class="eyebrow">Pass holder</p>
-      <h1>Your Parivar Pass</h1>
-      <p class="lede">
-        Keep your QR private. First scan registers you as bearer. Later scans let
-        you RSVP to an event from the list. Parsec / Whitefield: show this pass at
-        the ticket desk — staff redeem those.
-      </p>
+      <div class="staff-bar hidden" id="staff-bar">
+        <span>Staff view · <b id="staff-who"></b></span>
+        <span>
+          <a href="desk.html">Desk</a> ·
+          <button type="button" class="link" id="staff-out">Sign out</button>
+        </span>
+      </div>
+
+      <p class="eyebrow">Param · Parivār Pass</p>
+      <h1 id="title">Your Parivar Pass</h1>
       <p id="status" class="status hidden" role="status"></p>
 
-      <section class="panel" id="lookup-panel">
-        <h2>Open pass</h2>
+      <section class="panel hidden" id="lookup-panel">
+        <h2>Open a pass</h2>
         <label>
           Pass ID
           <input id="pass-input" autocomplete="off" placeholder="PV2-…" />
@@ -40,95 +38,73 @@
       </section>
 
       <section class="panel hidden" id="invalid-panel">
-        <h2>Pass invalid</h2>
+        <h2 id="invalid-title">Pass not valid</h2>
         <p id="invalid-reason"></p>
         <p class="pass-id" id="invalid-id"></p>
       </section>
 
       <section class="panel hidden" id="register-panel">
-        <h2>Register now</h2>
+        <h2>Welcome — claim your pass</h2>
         <p class="hint">
-          First bearer for <span class="pass-id" id="reg-pass-id"></span>
+          Pass <span class="pass-id" id="reg-pass-id"></span>. The first person to
+          register becomes its holder.
         </p>
         <form id="register-form">
           <label>Full name <input id="reg-name" required autocomplete="name" /></label>
-          <label>Phone <input id="reg-phone" required autocomplete="tel" /></label>
-          <label>Email (optional) <input id="reg-email" type="email" /></label>
+          <label>Phone <input id="reg-phone" required autocomplete="tel" inputmode="tel" /></label>
+          <label>Email (optional) <input id="reg-email" type="email" autocomplete="email" /></label>
           <div class="btn-row">
-            <button type="submit" id="reg-submit">Complete registration</button>
+            <button type="submit" id="reg-submit">Claim pass</button>
           </div>
         </form>
       </section>
 
-      <section class="panel hidden" id="otp-panel">
-        <h2>Verify phone</h2>
-        <p class="hint">
-          Enter the code sent to <span id="otp-phone-label"></span>
-        </p>
-        <form id="otp-form">
-          <label>
-            One-time code
-            <input
-              id="otp-code"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              required
-              maxlength="8"
-              placeholder="6-digit code"
-            />
-          </label>
-          <div class="btn-row">
-            <button type="submit" id="otp-verify">Verify &amp; register</button>
-            <button type="button" class="secondary" id="otp-resend">Resend code</button>
-            <button type="button" class="secondary" id="otp-back">Back</button>
-          </div>
-        </form>
-      </section>
-
-      <div id="proof-panel" class="proof hidden">
-        <p class="tag">Show at registration desk</p>
-        <p class="big" id="proof-title">REDEEMED</p>
-        <p id="proof-detail"></p>
-        <p class="pass-id" id="proof-pass"></p>
-      </div>
-
-      <section class="panel hidden" id="home-panel">
-        <h2>Hello, <span id="guest-name"></span></h2>
-        <p class="hint">
-          <span class="pass-id" id="guest-pass-id"></span> · Valid till
-          <span id="guest-valid"></span>
-        </p>
-        <p class="hint" id="social-line"></p>
-
-        <div id="venue-list"></div>
-
-        <div class="benefit" id="rsvp-block">
-          <p class="tag">Event · RSVP</p>
-          <h3>Choose an event</h3>
+      <section class="hidden" id="home-panel">
+        <div class="pass-head">
+          <p class="hello">Hello, <span id="holder-name"></span></p>
           <p class="hint">
-            Events come from the Param events list. Confirming uses that
-            privilege even if you don’t attend.
-          </p>
-          <label for="event-select">Event</label>
-          <select id="event-select">
-            <option value="">Select an event…</option>
-          </select>
-          <p class="hint" id="event-meta"></p>
-          <div class="btn-row">
-            <button type="button" id="rsvp-btn" disabled>Confirm RSVP</button>
-          </div>
-          <p class="hint hidden" id="rsvp-empty">
-            No open event privileges left on this pass.
+            <span class="pass-id" id="holder-pass-id"></span> · Valid till
+            <span id="holder-valid"></span>
           </p>
         </div>
+        <div id="holder-privs"></div>
+        <p class="hint" id="social-line"></p>
+      </section>
 
-        <div id="used-events" class="hidden"></div>
+      <section class="hidden" id="staff-panel">
+        <div class="panel">
+          <p class="pass-id" id="s-pass-id"></p>
+          <h2 id="s-name"></h2>
+          <p class="hint" id="s-meta"></p>
+          <div class="btn-row hidden" id="s-admin-actions"></div>
+        </div>
+
+        <div class="panel hidden" id="s-assign">
+          <h2>Assign this pass</h2>
+          <form id="assign-form">
+            <label>Full name <input id="a-name" required /></label>
+            <label>Phone <input id="a-phone" inputmode="tel" /></label>
+            <label>Email <input id="a-email" type="email" /></label>
+            <label>
+              Type
+              <select id="a-type">
+                <option value="customer">Customer</option>
+                <option value="professional">Professional</option>
+              </select>
+            </label>
+            <div class="btn-row"><button type="submit" id="a-submit">Assign</button></div>
+          </form>
+        </div>
+
+        <div id="staff-privs"></div>
       </section>
     </main>
     <script src="config.js"></script>
-    <script src="demo-store.js"></script>
     <script src="api.js"></script>
     <script src="ui.js"></script>
+    <script src="staff.js"></script>
+    <script src="pass-view.js"></script>
+    <script src="staff-panel.js"></script>
     <script src="audience.js"></script>
   </body>
 </html>

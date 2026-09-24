@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Assign passes — Parivar Pass v2</title>
+    <title>Assign names — Parivar Pass</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -43,9 +43,9 @@
   </head>
   <body>
     <nav class="topnav no-print">
-      <a href="index.html">← Parivar Pass v2</a>
-      <a href="admin.html">Admin desk</a>
-      <a href="print.html">Print batch</a>
+      <a href="admin.html">← Admin</a>
+      <a href="print.html">Mint &amp; print</a>
+      <a href="desk.html">Ticket desk</a>
     </nav>
 
     <main class="wide no-print">
@@ -77,6 +77,13 @@
           <code>Name&lt;tab&gt;Phone&lt;tab&gt;Email</code>
           <textarea id="tsv" placeholder="Anjali Rao&#9;9876543210&#10;Rohit Shetty&#9;9876500000&#9;rohit@example.com"></textarea>
         </label>
+        <label>
+          Pass type for this list
+          <select id="type">
+            <option value="customer">Customer</option>
+            <option value="professional">Professional</option>
+          </select>
+        </label>
         <div class="btn-row">
           <button type="button" id="parse">Preview</button>
         </div>
@@ -104,19 +111,10 @@
     <div class="print-sheet" id="print-root" aria-hidden="true"></div>
 
     <script src="config.js"></script>
-    <script src="demo-store.js"></script>
     <script src="api.js"></script>
     <script src="ui.js"></script>
+    <script src="staff.js"></script>
     <script src="pass-html.js"></script>
     <script src="assign.js"></script>
-    <script>
-      (function () {
-        var c = window.PARIVAR_CONFIG || {};
-        var hint = document.getElementById("pin-hint");
-        if (!hint) return;
-        hint.textContent =
-          c.mode === "sheets" ? "Staff PIN required." : "Demo PIN: " + (c.adminPin || "param2468");
-      })();
-    </script>
   </body>
 </html>

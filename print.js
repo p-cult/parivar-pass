@@ -2,160 +2,159 @@
   var UI = window.ParivarUI;
   var API = window.ParivarAPI;
   var $ = UI.$;
+  var cfg = window.PARIVAR_CONFIG || {};
+  var PER = (cfg.a3 && cfg.a3.perPage) || 21;
   var pin = "";
   var lastPasses = [];
   var working = false;
 
-  $("mode-pill").textContent = UI.modeLabel();
-
-  function failNet(err) {
+  function fail(err) {
     working = false;
     UI.setBusy($("unlock"), false);
     UI.setBusy($("generate"), false);
-    $("do-print").disabled = !lastPasses.length;
-    UI.setStatus(
-      $("status"),
-      "Print failed: " + ((err && err.message) || String(err)),
-      "bad"
-    );
+    UI.setStatus($("status"), (err && err.message) || String(err), "bad");
   }
 
   function unlock() {
     if (working) return;
     pin = $("admin-pin").value.trim();
     if (!pin) {
-      UI.setStatus($("status"), "Enter PIN", "bad");
+      UI.setStatus($("status"), "Enter your admin PIN", "bad");
       return;
     }
     working = true;
     UI.setBusy($("unlock"), true, "Checking…");
-    UI.setStatus($("status"), "Checking PIN…", "info");
-    API.call("adminLookup", { pin: pin, passId: "__pin_check__" })
+    API.call("staffLogin", { pin: pin })
       .then(function (res) {
         working = false;
         UI.setBusy($("unlock"), false);
-        if (!res.ok && res.code === "auth") {
-          UI.setStatus($("status"), res.error || "Wrong admin PIN", "bad");
-          return;
-        }
         if (!res.ok) {
-          UI.setStatus($("status"), res.error || "Unlock failed", "bad");
+          UI.setStatus($("status"), res.error || "Wrong PIN", "bad");
           return;
         }
+        if (res.data.role !== "admin") {
+          UI.setStatus($("status"), "Minting needs an admin PIN.", "bad");
+          return;
+        }
+        UI.setStatus($("status"), "", "info");
         UI.show($("auth-panel"), false);
         UI.show($("batch-panel"), true);
-        UI.setStatus($("status"), "Unlocked", "ok");
-        $("qty").focus();
-        warnLiveConfig();
+        UI.show($("reprint-panel"), true);
+        loadBatches();
       })
-      .catch(failNet);
+      .catch(fail);
   }
 
   function generate() {
     if (working) return;
-    var qty = Number($("qty").value) || 21;
-    qty = Math.max(1, Math.min(210, qty));
+    var qty = Math.max(1, Math.min(210, Number($("qty").value) || 21));
     $("qty").value = String(qty);
     working = true;
-    UI.setBusy($("generate"), true, "Working…");
+    UI.setBusy($("generate"), true, "Minting…");
     $("do-print").disabled = true;
-    UI.setStatus($("status"), "Issuing " + qty + " passes…", "info");
-    API.call("issueBatch", {
-      pin: pin,
-      quantity: qty,
-      notes: $("notes").value,
-    })
+    UI.setStatus($("status"), "Minting " + qty + " passes…", "info");
+    API.call("mint", { pin: pin, quantity: qty, type: $("type").value, notes: $("notes").value })
       .then(function (res) {
-        if (!res.ok) {
-          working = false;
-          UI.setBusy($("generate"), false);
-          UI.setStatus($("status"), res.error, "bad");
-          return null;
-        }
+        if (!res.ok) throw new Error(res.error || "Mint failed");
         lastPasses = res.data.passes || [];
-        var per =
-          (window.PARIVAR_CONFIG.a3 && window.PARIVAR_CONFIG.a3.perPage) || 21;
-        var vault = res.data.vault;
-        var meta =
-          lastPasses.length +
-          " passes · generated " +
-          res.data.generatedAt +
-          " · valid till " +
-          res.data.validUntil +
-          " · " +
-          Math.ceil(lastPasses.length / per) +
-          " A3 page(s)";
-        $("batch-meta").textContent = meta;
-        UI.setStatus($("status"), "Building print sheet…", "info");
-        return renderSheets(lastPasses).then(function () {
-          working = false;
-          UI.setBusy($("generate"), false);
-          UI.show($("preview"), true);
-          $("do-print").disabled = false;
-          scalePreviews();
-          var msg = "Ready — Print / Save as PDF (A3 portrait, 3×7).";
-          if (vault && vault.vaultFolderUrl) {
-            msg += " Saved to vault.";
-            $("batch-meta").innerHTML =
-              meta +
-              ' · <a href="' +
-              vault.vaultFolderUrl +
-              '" target="_blank" rel="noopener">Open vault folder</a>' +
-              (vault.printHtmlUrl
-                ? ' · <a href="' +
-                  vault.printHtmlUrl +
-                  '" target="_blank" rel="noopener">Print file</a>'
-                : "") +
-              ' · <a href="vault.html">Vault</a>';
-          }
-          UI.setStatus($("status"), msg, "ok");
-        });
+        $("batch-meta").textContent =
+          res.data.batchId + " · " + lastPasses.length + " passes · valid till " + res.data.validUntil +
+          " · " + Math.ceil(lastPasses.length / PER) + " A3 page(s)";
+        UI.setStatus($("status"), "Laying out print sheet…", "info");
+        return renderSheets(lastPasses);
       })
-      .catch(failNet);
+      .then(function () {
+        working = false;
+        UI.setBusy($("generate"), false);
+        $("do-print").disabled = false;
+        UI.setStatus($("status"), "Minted — now Print / Save PDF (A3 portrait, background graphics on).", "ok");
+        loadBatches();
+      })
+      .catch(fail);
+  }
+
+  function loadBatches() {
+    API.call("listBatches", { pin: pin }).then(function (res) {
+      var list = $("batch-list");
+      list.textContent = "";
+      if (!res.ok) {
+        list.appendChild(hint(res.error || "Could not load batches"));
+        return;
+      }
+      var batches = res.data.batches || [];
+      if (!batches.length) {
+        list.appendChild(hint("No batches yet."));
+        return;
+      }
+      batches.forEach(function (b) {
+        var row = document.createElement("div");
+        row.className = "batch-row";
+        var text = document.createElement("span");
+        text.textContent =
+          b.batchId + " · " + (b.createdAt || "—") + " · " + b.total + " passes (" + b.unclaimed + " unclaimed)";
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "secondary";
+        btn.textContent = "Reprint";
+        btn.addEventListener("click", function () {
+          reprint(b.batchId, btn);
+        });
+        row.appendChild(text);
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+    });
+  }
+
+  function reprint(batchId, btn) {
+    if (working) return;
+    working = true;
+    UI.setBusy(btn, true, "Loading…");
+    API.call("listPasses", { pin: pin })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.error || "Could not load passes");
+        lastPasses = (res.data.passes || []).filter(function (p) {
+          return (p.batchId || "(none)") === batchId && p.effectiveStatus !== "invalid";
+        });
+        $("batch-meta").textContent = batchId + " · " + lastPasses.length + " passes (reprint)";
+        return renderSheets(lastPasses);
+      })
+      .then(function () {
+        working = false;
+        UI.setBusy(btn, false);
+        $("do-print").disabled = !lastPasses.length;
+        UI.setStatus($("status"), "Ready — Print / Save PDF.", "ok");
+      })
+      .catch(function (err) {
+        UI.setBusy(btn, false);
+        fail(err);
+      });
+  }
+
+  function hint(t) {
+    var p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = t;
+    return p;
   }
 
   $("unlock").addEventListener("click", unlock);
   $("generate").addEventListener("click", generate);
   $("do-print").addEventListener("click", function () {
-    if (!lastPasses.length) return;
-    window.print();
+    if (lastPasses.length) window.print();
   });
   UI.onEnter($("admin-pin"), unlock);
-
-  function warnLiveConfig() {
-    var c = window.PARIVAR_CONFIG || {};
-    var tips = [];
-    if (c.mode !== "sheets") {
-      tips.push("Still in demo mode (localStorage). Set mode: \"sheets\" + webAppUrl before live.");
-    }
-    if (!(c.publicBaseUrl || "").trim()) {
-      tips.push(
-        "publicBaseUrl is blank — QR codes will use this browser’s URL. Set the live audience.html URL in config.js before printing for production."
-      );
-    }
-    var el = $("live-warn");
-    if (!el) return;
-    if (!tips.length) {
-      el.className = "status hidden";
-      el.textContent = "";
-      return;
-    }
-    el.className = "status status-info";
-    el.textContent = tips.join(" ");
-  }
+  if ($("admin-pin").value) unlock();
 
   window.addEventListener("resize", scalePreviews);
 
   function scalePreviews() {
     var preview = $("preview");
-    if (!preview || preview.classList.contains("hidden")) return;
-    var pages = preview.querySelectorAll(".a3-page-preview");
+    if (preview.classList.contains("hidden")) return;
     var avail = Math.max(280, preview.clientWidth - 16);
-    pages.forEach(function (page) {
-      var natural = 420 * (96 / 25.4); // ~ mm→css px approx; use offsetWidth after reset
+    preview.querySelectorAll(".a3-page-preview").forEach(function (page) {
       page.style.transform = "none";
-      var w = page.offsetWidth || 420 * 3.78;
-      var scale = Math.min(1, avail / w);
+      var scale = Math.min(1, avail / (page.offsetWidth || 1123));
       page.style.transformOrigin = "top left";
       page.style.transform = "scale(" + scale + ")";
       page.style.marginBottom = scale < 1 ? -(page.offsetHeight * (1 - scale)) + "px" : "1rem";
@@ -163,51 +162,42 @@
   }
 
   function renderSheets(passes) {
-    var per =
-      (window.PARIVAR_CONFIG.a3 && window.PARIVAR_CONFIG.a3.perPage) || 21;
     var preview = $("preview");
     var printRoot = $("print-root");
-    preview.innerHTML = "";
-    printRoot.innerHTML = "";
-
+    preview.textContent = "";
+    printRoot.textContent = "";
     var pages = [];
-    for (var i = 0; i < passes.length; i += per) {
-      pages.push(passes.slice(i, i + per));
-    }
-
-    return pages.reduce(function (chain, pagePasses) {
-      return chain.then(function () {
-        return buildPage(pagePasses, per).then(function (pageHtml) {
-          var prev = document.createElement("div");
-          prev.className = "a3-page-preview";
-          prev.innerHTML = pageHtml;
-          preview.appendChild(prev);
-
-          var pr = document.createElement("div");
-          pr.className = "a3-page";
-          pr.innerHTML = pageHtml;
-          printRoot.appendChild(pr);
+    for (var i = 0; i < passes.length; i += PER) pages.push(passes.slice(i, i + PER));
+    return pages
+      .reduce(function (chain, pagePasses) {
+        return chain.then(function () {
+          return buildPage(pagePasses).then(function (html) {
+            var prev = document.createElement("div");
+            prev.className = "a3-page-preview";
+            prev.innerHTML = html;
+            preview.appendChild(prev);
+            var pr = document.createElement("div");
+            pr.className = "a3-page";
+            pr.innerHTML = html;
+            printRoot.appendChild(pr);
+          });
         });
+      }, Promise.resolve())
+      .then(function () {
+        UI.show(preview, true);
+        scalePreviews();
       });
-    }, Promise.resolve());
   }
 
-  function buildPage(pagePasses, per) {
+  function buildPage(pagePasses) {
     var cells = pagePasses.map(function (pass) {
-      var url = API.audienceUrlForPass(pass.passId);
-      return UI.qrDataUrl(url, 160).then(function (qr) {
-        return (
-          '<div class="pass-cell">' +
-          window.ParivarPassHTML.render(pass, qr) +
-          "</div>"
-        );
+      return UI.qrDataUrl(API.audienceUrlForPass(pass.passId), 160).then(function (qr) {
+        return '<div class="pass-cell">' + window.ParivarPassHTML.render(pass, qr) + "</div>";
       });
     });
-    while (cells.length < per) {
-      cells.push(Promise.resolve('<div class="pass-cell"></div>'));
-    }
-    return Promise.all(cells).then(function (htmls) {
-      return htmls.join("");
+    while (cells.length < PER) cells.push(Promise.resolve('<div class="pass-cell"></div>'));
+    return Promise.all(cells).then(function (h) {
+      return h.join("");
     });
   }
 })();

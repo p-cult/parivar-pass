@@ -110,6 +110,7 @@
           name: row.name,
           phone: row.phone,
           email: row.email,
+          type: $("type").value,
         }).then(function (res) {
           if (res.ok) {
             results.push({
@@ -231,6 +232,7 @@
 
   $("unlock").addEventListener("click", unlock);
   UI.onEnter($("admin-pin"), unlock);
+  if ($("admin-pin").value) unlock();
   $("parse").addEventListener("click", parse);
   $("assign").addEventListener("click", assignAll);
   $("do-print").addEventListener("click", buildPrintSheet);

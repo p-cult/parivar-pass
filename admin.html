@@ -3,80 +3,94 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin desk — Parivar Pass v2</title>
+    <title>Admin — Parivar Pass</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="../../core/tokens.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <nav class="topnav">
-      <a href="index.html">← Parivar Pass v2</a>
-      <a href="print.html">Print batch</a>
+      <a href="index.html">← Parivar Pass</a>
+      <a href="desk.html">Ticket desk</a>
     </nav>
     <main>
-      <p class="mode-pill" id="mode-pill"></p>
-      <p class="eyebrow">Param staff only</p>
-      <h1>Admin desk</h1>
-      <p class="lede">
-        Scan or enter a pass ID. For Parsec / Whitefield: disable that privilege
-        after verifying at the ticket desk (before purchase). Cross-check event
-        RSVPs against the Sheet.
-      </p>
+      <p class="eyebrow">Admin</p>
+      <h1>Parivar Pass admin</h1>
       <p id="status" class="status hidden" role="status"></p>
 
-      <section class="panel" id="auth-panel">
-        <h2>Staff PIN</h2>
-        <label>PIN <input id="admin-pin" type="password" inputmode="numeric" /></label>
-        <div class="btn-row">
-          <button type="button" id="unlock">Unlock</button>
-        </div>
-        <p class="hint" id="pin-hint"></p>
+      <section class="panel" id="login-panel">
+        <h2>Sign in</h2>
+        <label>Admin PIN <input id="pin" type="password" inputmode="numeric" autocomplete="off" /></label>
+        <div class="btn-row"><button type="button" id="login">Sign in</button></div>
       </section>
 
-      <section class="panel hidden" id="lookup-panel">
-        <h2>Look up pass</h2>
-        <label>
-          Pass ID (from QR)
-          <input id="pass-input" autocomplete="off" placeholder="PV2-…" />
-        </label>
-        <div class="btn-row">
-          <button type="button" id="lookup">Look up</button>
-        </div>
-      </section>
-
-      <section class="panel hidden" id="detail-panel">
-        <h2>Bearer</h2>
-        <p class="pass-id" id="detail-id"></p>
-        <p id="detail-meta" class="hint"></p>
-        <p id="detail-person" class="hint"></p>
-        <h2 style="margin-top: 1rem">Privileges</h2>
-        <div id="slot-actions"></div>
-        <h2 style="margin-top: 1rem">History</h2>
-        <div id="history" class="hint"></div>
-        <p class="hint" style="margin-top: 1rem">
-          <a id="sheet-link" href="#" target="_blank" rel="noopener">Open published Sheet</a>
-          · No pass replacement
+      <div class="hidden" id="admin-panel">
+        <p class="hint">
+          Signed in as <b id="who"></b> ·
+          <button type="button" class="link" id="logout">Sign out</button>
         </p>
-      </section>
+
+        <div class="stats" id="stats">
+          <div><b id="n-total">–</b><span>passes</span></div>
+          <div><b id="n-active">–</b><span>active</span></div>
+          <div><b id="n-unclaimed">–</b><span>unclaimed</span></div>
+          <div><b id="n-invalid">–</b><span>cancelled / expired</span></div>
+        </div>
+
+        <div class="role-grid">
+          <a class="role-card" href="print.html">
+            <strong>Mint &amp; print</strong>
+            <span>New passes in bulk or one at a time · reprint any batch</span>
+          </a>
+          <a class="role-card" href="assign.html">
+            <strong>Assign names</strong>
+            <span>Paste a list — fills unclaimed passes and prints them named</span>
+          </a>
+          <a class="role-card" href="desk.html">
+            <strong>Scan &amp; manage a pass</strong>
+            <span>Enable, mark used or turn off privileges · assign · cancel</span>
+          </a>
+          <a class="role-card" id="sheet-link" href="#" target="_blank" rel="noopener">
+            <strong>Open the Google Sheet</strong>
+            <span>The database — passes, privileges, staff, log</span>
+          </a>
+        </div>
+
+        <section class="panel guide">
+          <h2>Running things from the Sheet</h2>
+          <ul class="hint">
+            <li>
+              <b>Add a privilege</b> (free entry, discount, media link, file): add a row on the
+              <b>privileges</b> tab. Kind is <code>free</code>, <code>discount</code>,
+              <code>link</code> or <code>file</code>. Then use the Sheet menu
+              <b>Parivar Pass → Set up / sync</b> to add its column to <b>passes</b>.
+            </li>
+            <li>
+              <b>Bulk actions:</b> on the <b>passes</b> tab, filter the rows you want and fill the
+              privilege column with <code>enabled</code>, <code>used</code> or <code>disabled</code>.
+              A blank cell means that privilege's default.
+            </li>
+            <li>
+              <b>Staff access:</b> add a row on the <b>staff</b> tab with a name, a PIN and a role
+              (<code>checker</code> or <code>admin</code>). Set <b>active</b> to FALSE to revoke.
+              Checkers can only mark privileges used; admins can do everything.
+            </li>
+            <li>
+              <b>Cancel a pass:</b> set its <b>status</b> to <code>void</code>.
+              Every desk action lands on the <b>log</b> tab.
+            </li>
+          </ul>
+        </section>
+      </div>
     </main>
     <script src="config.js"></script>
-    <script src="demo-store.js"></script>
     <script src="api.js"></script>
     <script src="ui.js"></script>
+    <script src="staff.js"></script>
     <script src="admin.js"></script>
-    <script>
-      (function () {
-        var c = window.PARIVAR_CONFIG || {};
-        var hint = document.getElementById("pin-hint");
-        if (!hint) return;
-        hint.textContent =
-          c.mode === "sheets" ? "Staff PIN required." : "Demo PIN: " + (c.adminPin || "param2468");
-      })();
-    </script>
   </body>
 </html>
