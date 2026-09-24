@@ -19,6 +19,7 @@
 
   var staff = window.ParivarStaff.get();
   if (staff) {
+    window.ParivarStaff.keepWarm();
     UI.show($("staff-bar"), true);
     $("staff-who").textContent = staff.name + " (" + staff.role + ")";
     $("staff-out").addEventListener("click", function () {
@@ -50,10 +51,45 @@
     });
   }
 
+  // Last-seen copy of an active pass on this phone, so a repeat scan paints the
+  // dashboard instantly while the Sheet is re-read in the background.
+  var CACHE_PREFIX = "parivar:pass:";
+
+  function readCache(id) {
+    try {
+      var hit = JSON.parse(localStorage.getItem(CACHE_PREFIX + id) || "null");
+      return hit && hit.status === "active" && !hit.invalidReason ? hit : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCache(pass) {
+    try {
+      if (pass.status === "active" && !pass.invalidReason) {
+        localStorage.setItem(CACHE_PREFIX + pass.passId, JSON.stringify(pass));
+      } else {
+        localStorage.removeItem(CACHE_PREFIX + pass.passId);
+      }
+    } catch (e) {
+      /* storage unavailable: just no instant repeat */
+    }
+  }
+
   function openPass(id) {
-    UI.setStatus($("status"), "Opening your pass…", "info");
+    var cached = readCache(id);
+    if (cached) {
+      show(cached);
+      UI.setStatus($("status"), "Refreshing…", "info");
+    } else {
+      UI.setStatus($("status"), "Opening your pass…", "info");
+    }
     API.call("getPass", { passId: id }).then(function (res) {
       if (!res.ok || !res.data || !res.data.pass) {
+        if (cached && res.code !== "not_found") {
+          UI.setStatus($("status"), "Showing your last saved view — couldn't refresh just now.", "info");
+          return;
+        }
         hideAll();
         UI.show($("lookup-panel"), true);
         $("pass-input").value = id;
@@ -66,6 +102,7 @@
   }
 
   function show(pass) {
+    writeCache(pass);
     hideAll();
     if (pass.invalidReason) {
       UI.show($("invalid-panel"), true);

@@ -3,6 +3,8 @@
   var $ = UI.$;
   var Staff = window.ParivarStaff;
 
+  Staff.keepWarm();
+
   function signedIn(s) {
     UI.show($("login-panel"), false);
     UI.show($("desk-panel"), true);

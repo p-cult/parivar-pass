@@ -46,5 +46,23 @@ window.ParivarStaff = (function () {
   prefill();
   document.addEventListener("DOMContentLoaded", prefill);
 
-  return { get: get, set: set, clear: clear, login: login };
+  // While a staff page is open, touch the backend every few minutes so the next
+  // scan doesn't pay Apps Script's cold-start. no-cors: we only need it to run.
+  var warmTimer = null;
+  function ping() {
+    var url = (window.PARIVAR_CONFIG || {}).webAppUrl;
+    if (url) fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(function () {});
+  }
+  function keepWarm() {
+    if (warmTimer) return;
+    ping();
+    warmTimer = setInterval(function () {
+      if (!document.hidden) ping();
+    }, 4 * 60 * 1000);
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) ping();
+    });
+  }
+
+  return { get: get, set: set, clear: clear, login: login, keepWarm: keepWarm };
 })();
