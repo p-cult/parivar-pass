@@ -15,6 +15,12 @@ Script web app (`sheets/Code.gs`).
 
 Printed QR codes point at `audience.html?pass=<id>` — never rename that page.
 
+**Admin sign-in:** the PIN box has a **Show key** button. Once signed in, the
+admin page shows your own key (hidden until **Show**), the full staff list with
+every PIN, and a **Sign out** link in the top bar. Sign-in is remembered on that
+device until you sign out. To change a key: **Edit** the row in the staff list
+(4–20 characters: letters, numbers, `-`, `_`).
+
 ## The Sheet
 
 | Tab | Purpose |
