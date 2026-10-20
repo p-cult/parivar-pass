@@ -15,6 +15,7 @@
     UI.show($("login-panel"), false);
     UI.show($("admin-panel"), true);
     $("who").textContent = s.name;
+    $("my-pin").dataset.pin = s.pin;
     loadStats(s.pin);
     loadStaff();
   }
@@ -173,6 +174,13 @@
 
   var s = Staff.get();
   if (s) show(s);
+
+  // The signed-in admin's own key stays masked until asked for.
+  $("show-pin").addEventListener("click", function () {
+    var hidden = $("my-pin").textContent === "••••";
+    $("my-pin").textContent = hidden ? $("my-pin").dataset.pin : "••••";
+    $("show-pin").textContent = hidden ? "Hide" : "Show";
+  });
 
   $("login").addEventListener("click", login);
   UI.onEnter($("pin"), login);
