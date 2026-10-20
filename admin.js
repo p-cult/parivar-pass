@@ -15,6 +15,7 @@
     UI.show($("login-panel"), false);
     UI.show($("admin-panel"), true);
     $("who").textContent = s.name;
+    UI.show($("nav-logout"), true);
     $("my-pin").dataset.pin = s.pin;
     loadStats(s.pin);
     loadStaff();
@@ -192,8 +193,11 @@
 
   $("login").addEventListener("click", login);
   UI.onEnter($("pin"), login);
-  $("logout").addEventListener("click", function () {
+  function logout(e) {
+    if (e) e.preventDefault();
     Staff.clear();
     location.reload();
-  });
+  }
+  $("logout").addEventListener("click", logout);
+  $("nav-logout").addEventListener("click", logout);
 })();
