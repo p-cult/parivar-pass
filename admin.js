@@ -182,6 +182,14 @@
     $("show-pin").textContent = hidden ? "Hide" : "Show";
   });
 
+  // Let the person signing in see what they typed.
+  $("pin-eye").addEventListener("click", function () {
+    var hidden = $("pin").type === "password";
+    $("pin").type = hidden ? "text" : "password";
+    $("pin-eye").textContent = hidden ? "👁 Hide key" : "👁 Show key";
+    $("pin").focus();
+  });
+
   $("login").addEventListener("click", login);
   UI.onEnter($("pin"), login);
   $("logout").addEventListener("click", function () {
